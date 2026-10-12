@@ -25,6 +25,11 @@ namespace XkScreen.Service
         public string[] Gpu;
         public string Time = "auto";
         public int IntervalMs = 500;
+        /// <summary>Master switch: "on" (default) or "off" (frames paused, screen dark).</summary>
+        public string Screen = "on";
+        /// <summary>Optional daily off-window ("off" time and "on" time, HH:MM). Null = no schedule.</summary>
+        public string ScheduleOff;
+        public string ScheduleOn;
 
         private static readonly string Dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "XkScreen");
@@ -65,6 +70,20 @@ namespace XkScreen.Service
                     int iv;
                     if (int.TryParse(Convert.ToString(root["interval_ms"]), out iv) && iv >= 100 && iv <= 5000)
                         c.IntervalMs = iv;
+                }
+                if (root.ContainsKey("screen") && root["screen"] != null)
+                {
+                    string sv = Convert.ToString(root["screen"]).Trim().ToLowerInvariant();
+                    if (sv == "off") c.Screen = "off";
+                }
+                if (root.ContainsKey("schedule") && root["schedule"] != null)
+                {
+                    Dictionary<string, object> sc = root["schedule"] as Dictionary<string, object>;
+                    if (sc != null)
+                    {
+                        if (sc.ContainsKey("off") && sc["off"] != null) c.ScheduleOff = Convert.ToString(sc["off"]).Trim();
+                        if (sc.ContainsKey("on") && sc["on"] != null) c.ScheduleOn = Convert.ToString(sc["on"]).Trim();
+                    }
                 }
             }
             catch (Exception ex) { Log.Write("config load exc: " + ex.Message); }
@@ -123,11 +142,39 @@ namespace XkScreen.Service
                     if (iv < 100 || iv > 5000) return "interval out of range (100-5000)";
                 }
 
+                string screen = "on";
+                if (root.ContainsKey("screen") && root["screen"] != null)
+                {
+                    screen = Convert.ToString(root["screen"]).Trim().ToLowerInvariant();
+                    if (screen != "on" && screen != "off") return "bad screen value (on/off)";
+                }
+
+                string schedOff = null;
+                string schedOn = null;
+                if (root.ContainsKey("schedule") && root["schedule"] != null)
+                {
+                    Dictionary<string, object> sc = root["schedule"] as Dictionary<string, object>;
+                    if (sc == null) return "bad schedule";
+                    schedOff = sc.ContainsKey("off") && sc["off"] != null ? Convert.ToString(sc["off"]).Trim() : null;
+                    schedOn = sc.ContainsKey("on") && sc["on"] != null ? Convert.ToString(sc["on"]).Trim() : null;
+                    if (schedOff == null || schedOn == null) return "schedule needs both off and on";
+                    if (!IsValidHHMM(schedOff) || !IsValidHHMM(schedOn)) return "schedule times must be HH:MM";
+                    if (schedOff == schedOn) return "schedule off and on must differ";
+                }
+
                 Dictionary<string, object> canon = new Dictionary<string, object>();
                 canon["cpu"] = cpu;
                 canon["gpu"] = gpu;
                 canon["time"] = time;
                 canon["interval_ms"] = iv;
+                canon["screen"] = screen;
+                if (schedOff != null)
+                {
+                    Dictionary<string, object> sd = new Dictionary<string, object>();
+                    sd["off"] = schedOff;
+                    sd["on"] = schedOn;
+                    canon["schedule"] = sd;
+                }
 
                 if (!Directory.Exists(Dir)) Directory.CreateDirectory(Dir);
                 File.WriteAllText(FilePath, new JavaScriptSerializer().Serialize(canon), new UTF8Encoding(false));
@@ -179,6 +226,14 @@ namespace XkScreen.Service
             if (tt.Length != 2) return false;
             int tm; int ts;
             return int.TryParse(tt[0], out tm) && int.TryParse(tt[1], out ts) && tm >= 0 && tm <= 99 && ts >= 0 && ts <= 59;
+        }
+
+        private static bool IsValidHHMM(string v)
+        {
+            string[] tt = v.Split(':');
+            if (tt.Length != 2) return false;
+            int th; int tm;
+            return int.TryParse(tt[0], out th) && int.TryParse(tt[1], out tm) && th >= 0 && th <= 23 && tm >= 0 && tm <= 59;
         }
 
         public string Describe()

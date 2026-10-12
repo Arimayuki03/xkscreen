@@ -23,6 +23,7 @@
 
 - **圆环显示任意数据** —— 四个数字位（CPU 环上/下格、GPU 环上/下格）可映射到 **19 种实时数据源**：CPU/GPU 占用、温度、频率、功耗、电压、风扇转速、内存占用、网速、硬盘活动 —— 或固定数值。
 - **时钟完全可控** —— 跟随系统 / 偏移（快慢 N 分钟）/ 固定时间 / **秒表**（MM:SS）/ **倒计时**，带 开始 / 暂停 / 继续 / 重置 按钮。计时器发帧对齐到秒边界，屏幕跳秒干脆利落。
+- **屏幕开关与定时** —— 一键关屏/开屏，或设置每日熄屏时段（如 23:30 关、07:00 开，支持跨午夜）。关屏时暂停全部发帧（面板无掉电保持，即变黑、驱动也随之空闲），恢复时自动重新握手点亮。
 - **网页控制台** —— 驱动自带界面托管：浏览器直接打开 `http://127.0.0.1:8899/`，或用无边框桌面窗口（WebView2）。中英文可切换，改动即时上屏。
 - **轻量设计** —— 编译版 .NET 驱动常驻内存 **约 30 MB**（工作集，定期修剪）；控制台关闭时零占用；无 Electron、无 Node 运行时。
 - **配置即代码** —— 单一 `config.json` + 本地 HTTP API（`/status`、`/config`），方便脚本与自动化。
@@ -75,7 +76,9 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
   "cpu": ["cpu_load", "cpu_temp"],
   "gpu": ["mem_pct", "net_down_x10"],
   "time": "auto",
-  "interval_ms": 500
+  "interval_ms": 500,
+  "screen": "on",
+  "schedule": { "off": "23:30", "on": "07:00" }
 }
 ```
 
@@ -109,12 +112,20 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
 | `timer_down:MM:SS` | 倒计时，归零停住 |
 | `timer_down_paused:MM:SS` | 倒计时冻结显示 |
 
+### 屏幕电源
+
+| 取值 | 含义 |
+|---|---|
+| `"screen": "on"` | 屏幕活动（默认） |
+| `"screen": "off"` | 暂停全部发帧 —— 面板熄灭 |
+| `"schedule": {"off": "HH:MM", "on": "HH:MM"}` | 可选每日熄屏窗口（自动处理跨午夜）。生效关屏 = 手动关 **或** 处于窗口内 |
+
 ## 🌐 本地 API
 
 驱动同时托管界面和一个小型 JSON API，仅监听回环地址（`127.0.0.1:8899`）：
 
 - `GET /` —— 网页控制台（`/_next/...` 下的静态资源同样 200）
-- `GET /status` —— `{ ok, config, sensors, show }`（`show` = 时钟区当前实际显示内容）
+- `GET /status` —— `{ ok, config, sensors, show, screen }`（`show` = 时钟区当前实际显示内容，`screen` = 生效的电源状态）
 - `POST /config` —— 校验并保存配置（schema 同 `config.json`）
 
 ## ⚠️ 已知限制

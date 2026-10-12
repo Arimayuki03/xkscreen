@@ -34,6 +34,10 @@ namespace XkScreen.Service
         private static MethodInfo miSetCpuDyn;
         private static MethodInfo miSetGpuDyn;
         private static MethodInfo miSetDeviceTime;
+        private static MethodInfo miCheckOnline;
+
+        /// <summary>Effective screen power state (true = frames paused, display dark).</summary>
+        private static bool screenOffState;
 
         /// <summary>Last clock-area content actually sent to the screen (HH:MM display string).</summary>
         internal static string LastShow = "";
@@ -88,6 +92,7 @@ namespace XkScreen.Service
                 miSetCpuDyn = tWrap.GetMethod("SetCpuDynamicInfo");
                 miSetGpuDyn = tWrap.GetMethod("SetGpuDynamicInfo");
                 miSetDeviceTime = tWrap.GetMethod("SetDeviceTime");
+                miCheckOnline = tHelp.GetMethod("CheckOnlineDevice");
                 FieldInfo fiSendDelay = tHelp.GetField("usb_send_delay", BindingFlags.NonPublic | BindingFlags.Instance);
 
                 object help = Activator.CreateInstance(tHelp);
@@ -146,42 +151,65 @@ namespace XkScreen.Service
                         interval = cfg.IntervalMs;
                         timeSpec = cfg.Time;
 
-                        Dictionary<string, double> sensors = Sensors.GetSensors();
+                        // Screen power: master switch + optional daily off-window.
+                        // Pausing all frames blanks the display (it has no power-loss
+                        // hold); resuming re-arms the device first.
+                        bool offNow = IsScreenOff(cfg, DateTime.Now);
+                        if (offNow != screenOffState)
+                        {
+                            screenOffState = offNow;
+                            if (screenOffState)
+                            {
+                                Log.Write("screen OFF - frames paused");
+                            }
+                            else
+                            {
+                                Log.Write("screen ON - resuming");
+                                try { miCheckOnline.Invoke(help, null); }
+                                catch (Exception rex) { Log.Write("re-arm exc: " + rex.Message); }
+                            }
+                        }
 
-                        // Push hardware data ourselves in the official frame formats.
-                        // This replaces SendDynamicDataNew entirely so each cycle emits
-                        // exactly ONE time frame - no more occasional real-time flashes
-                        // while a custom clock (timer/offset/fixed) is active.
-                        byte[] cpuArr = Sensors.BuildCpuArray();
-                        if (cpuArr != null) miSetCpuDyn.Invoke(null, new object[] { cpuArr, (uint)cpuArr.Length });
-                        byte[] gpuArr = Sensors.BuildGpuArray();
-                        if (gpuArr != null) miSetGpuDyn.Invoke(null, new object[] { gpuArr, (uint)gpuArr.Length });
+                        if (!screenOffState)
+                        {
+                            Dictionary<string, double> sensors = Sensors.GetSensors();
 
-                        byte[] rc = BuildRing(cfg.Cpu, sensors, "cpu");
-                        if (rc != null) miSetCpuDyn.Invoke(null, new object[] { rc, (uint)8 });
-                        byte[] rg = BuildRing(cfg.Gpu, sensors, "gpu");
-                        if (rg != null) miSetGpuDyn.Invoke(null, new object[] { rg, (uint)8 });
+                            // Push hardware data ourselves in the official frame formats.
+                            // This replaces SendDynamicDataNew entirely so each cycle emits
+                            // exactly ONE time frame - no more occasional real-time flashes
+                            // while a custom clock (timer/offset/fixed) is active.
+                            byte[] cpuArr = Sensors.BuildCpuArray();
+                            if (cpuArr != null) miSetCpuDyn.Invoke(null, new object[] { cpuArr, (uint)cpuArr.Length });
+                            byte[] gpuArr = Sensors.BuildGpuArray();
+                            if (gpuArr != null) miSetGpuDyn.Invoke(null, new object[] { gpuArr, (uint)gpuArr.Length });
 
-                        byte[] tframe = BuildTimeFrame(cfg.Time);
-                        Flush(tframe);
+                            byte[] rc = BuildRing(cfg.Cpu, sensors, "cpu");
+                            if (rc != null) miSetCpuDyn.Invoke(null, new object[] { rc, (uint)8 });
+                            byte[] rg = BuildRing(cfg.Gpu, sensors, "gpu");
+                            if (rg != null) miSetGpuDyn.Invoke(null, new object[] { rg, (uint)8 });
 
-                        byte[] shown = tframe != null ? tframe : TimeBytesFromDateTime(DateTime.Now);
-                        LastShow = ((int)shown[5]).ToString("00") + ":" + ((int)shown[6]).ToString("00");
+                            byte[] tframe = BuildTimeFrame(cfg.Time);
+                            Flush(tframe);
+
+                            byte[] shown = tframe != null ? tframe : TimeBytesFromDateTime(DateTime.Now);
+                            LastShow = ((int)shown[5]).ToString("00") + ":" + ((int)shown[6]).ToString("00");
+                        }
 
                         i++;
                         if (i % 40 == 0)
                             Log.Write("alive i=" + i + " " + cfg.Describe()
-                                + (tframe != null ? " show=" + ((int)tframe[5]).ToString("00") + ":" + ((int)tframe[6]).ToString("00") : ""));
+                                + (screenOffState ? " screen:OFF" : ""));
                     }
                     catch (Exception ex) { Log.Write("loop exc: " + ex.Message); }
 
                     // Running timers show a seconds digit (MM:SS). Wake the loop just
                     // after each displayed-second boundary so the screen ticks crisply
                     // instead of sometimes lagging up to half an interval behind.
+                    // (Skipped while the screen is off - there are no frames to align.)
                     int sleepMs = interval;
                     try
                     {
-                        if (timeSpec != null && timeSpec.StartsWith("timer") && !timeSpec.Contains("paused"))
+                        if (!screenOffState && timeSpec != null && timeSpec.StartsWith("timer") && !timeSpec.Contains("paused"))
                         {
                             double elapsedMs = (DateTime.Now - Timer.T0).TotalMilliseconds;
                             double toBoundary = 1000.0 - (elapsedMs % 1000.0);
@@ -363,6 +391,41 @@ namespace XkScreen.Service
             miSetDeviceTime.Invoke(null, new object[] { t, (uint)9 });
         }
 
+        /// <summary>Parse "HH:MM" into minutes-since-midnight, or -1 when invalid.</summary>
+        private static int ParseHHMM(string s)
+        {
+            try
+            {
+                string[] p = s.Split(':');
+                if (p.Length == 2)
+                {
+                    int h; int m;
+                    if (int.TryParse(p[0], out h) && int.TryParse(p[1], out m) && h >= 0 && h <= 23 && m >= 0 && m <= 59)
+                        return h * 60 + m;
+                }
+            }
+            catch { }
+            return -1;
+        }
+
+        /// <summary>
+        /// Effective screen power: manual master switch OR inside the daily
+        /// off-window (off time -> on time, wrapping midnight when needed).
+        /// </summary>
+        private static bool IsScreenOff(Config cfg, DateTime now)
+        {
+            if (cfg.Screen == "off") return true;
+            int offM = ParseHHMM(cfg.ScheduleOff ?? "");
+            int onM = ParseHHMM(cfg.ScheduleOn ?? "");
+            if (offM >= 0 && onM >= 0 && offM != onM)
+            {
+                int nowM = now.Hour * 60 + now.Minute;
+                if (offM < onM) return nowM >= offM && nowM < onM;
+                return nowM >= offM || nowM < onM;
+            }
+            return false;
+        }
+
         // ---- local HTTP API (for the GUI): 127.0.0.1:8899 ----
         // GET  /status  -> { ok, config:{cpu,gpu,time,interval_ms}, sensors:{...} }
         // POST /config  -> validate + save config json, { ok } or { ok:false, error }
@@ -420,6 +483,14 @@ namespace XkScreen.Service
                     cfgDict["gpu"] = cfg.Gpu != null ? (object)cfg.Gpu : new string[] { "auto", "auto" };
                     cfgDict["time"] = cfg.Time;
                     cfgDict["interval_ms"] = cfg.IntervalMs;
+                    cfgDict["screen"] = cfg.Screen;
+                    if (!string.IsNullOrEmpty(cfg.ScheduleOff) && !string.IsNullOrEmpty(cfg.ScheduleOn))
+                    {
+                        Dictionary<string, object> sd = new Dictionary<string, object>();
+                        sd["off"] = cfg.ScheduleOff;
+                        sd["on"] = cfg.ScheduleOn;
+                        cfgDict["schedule"] = sd;
+                    }
                 }
                 catch { }
 
@@ -436,6 +507,7 @@ namespace XkScreen.Service
                 root["config"] = cfgDict;
                 root["sensors"] = sensors;
                 root["show"] = LastShow;
+                root["screen"] = screenOffState ? "off" : "on";
                 WriteJson(res, root);
                 return;
             }

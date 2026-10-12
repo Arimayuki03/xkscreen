@@ -13,6 +13,10 @@ type Config = {
   gpu: string[];
   time: string;
   interval_ms: number;
+  screen: "on" | "off";
+  schEnabled: boolean;
+  schOff: string;
+  schOn: string;
 };
 
 const DEFAULT_CONFIG: Config = {
@@ -20,7 +24,23 @@ const DEFAULT_CONFIG: Config = {
   gpu: ["auto", "auto"],
   time: "auto",
   interval_ms: 500,
+  screen: "on",
+  schEnabled: false,
+  schOff: "23:30",
+  schOn: "07:00",
 };
+
+/** Map the UI state onto the driver's config schema. */
+function toApi(c: Config) {
+  return {
+    cpu: c.cpu,
+    gpu: c.gpu,
+    time: c.time,
+    interval_ms: c.interval_ms,
+    screen: c.screen,
+    ...(c.schEnabled ? { schedule: { off: c.schOff, on: c.schOn } } : {}),
+  };
+}
 
 const SOURCES: { key: string; zh: string; en: string }[] = [
   { key: "auto", zh: "自动（真实数据）", en: "Auto (real data)" },
@@ -85,6 +105,17 @@ const UI = {
     top: "上格",
     bottom: "下格",
     fixedValue: "固定值…",
+    screenPanel: "屏幕",
+    powerLabel: "电源",
+    screenOn: "开启",
+    screenOff: "关闭",
+    effOn: "当前点亮",
+    effOff: "当前已关闭",
+    scheduleLabel: "定时开关",
+    schedEnable: "启用",
+    schedDisable: "停用",
+    schedOffLabel: "关闭时间",
+    schedOnLabel: "开启时间",
   },
   en: {
     title: "XkScreen Console",
@@ -127,6 +158,17 @@ const UI = {
     top: "Top",
     bottom: "Bottom",
     fixedValue: "Fixed value…",
+    screenPanel: "Screen",
+    powerLabel: "Power",
+    screenOn: "On",
+    screenOff: "Off",
+    effOn: "Lights on",
+    effOff: "Display off",
+    scheduleLabel: "Daily schedule",
+    schedEnable: "Enable",
+    schedDisable: "Disable",
+    schedOffLabel: "Off at",
+    schedOnLabel: "On at",
   },
 } as const;
 
@@ -573,6 +615,7 @@ export default function Home() {
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
   const [sensors, setSensors] = useState<Record<string, number>>({});
   const [show, setShow] = useState("");
+  const [screenEff, setScreenEff] = useState<"on" | "off">("on");
   const [connected, setConnected] = useState(false);
   const [msg, setMsg] = useState<{ k: MsgKey; d?: string }>({ k: "connecting" });
 
@@ -621,6 +664,7 @@ export default function Home() {
       setConnected(true);
       setSensors(j.sensors || {});
       setShow(j.show || "");
+      setScreenEff(j.screen === "off" ? "off" : "on");
       // Recalibrate the local timer anchor from the server's authoritative value
       // when it drifts too far (or on first sight of a running spec).
       const ts: string | undefined = j.config ? j.config.time : undefined;
@@ -653,11 +697,16 @@ export default function Home() {
       if (!initialLoaded.current && j.config) {
         initialLoaded.current = true;
         const tt: string = j.config.time || "auto";
+        const sch = j.config.schedule;
         setConfig({
           cpu: j.config.cpu || ["auto", "auto"],
           gpu: j.config.gpu || ["auto", "auto"],
           time: tt,
           interval_ms: j.config.interval_ms || 500,
+          screen: j.config.screen === "off" ? "off" : "on",
+          schEnabled: !!sch,
+          schOff: sch && sch.off ? String(sch.off) : "23:30",
+          schOn: sch && sch.on ? String(sch.on) : "07:00",
         });
         if (/^[+-]\d+$/.test(tt)) setOffsetN(parseInt(tt, 10));
         const mf = tt.match(/^(\d{1,2}):(\d{2})$/);
@@ -690,7 +739,7 @@ export default function Home() {
       const r = await fetch(API + "/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cfg),
+        body: JSON.stringify(toApi(cfg)),
       });
       const j = await r.json();
       if (j.ok) setMsg({ k: "applied", d: new Date().toLocaleTimeString() });
@@ -972,6 +1021,67 @@ export default function Home() {
         </div>
 
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+          <Panel
+            title={t("screenPanel")}
+            right={
+              <span
+                className={
+                  "rounded-full border px-2.5 py-0.5 text-xs " +
+                  (screenEff === "off"
+                    ? "border-red-500/30 bg-red-500/10 text-red-300"
+                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300")
+                }
+              >
+                {screenEff === "off" ? t("effOff") : t("effOn")}
+              </span>
+            }
+          >
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <span className="w-14 text-sm text-slate-300">{t("powerLabel")}</span>
+                <Segmented<"on" | "off">
+                  value={config.screen}
+                  options={[
+                    { v: "on", label: t("screenOn") },
+                    { v: "off", label: t("screenOff") },
+                  ]}
+                  onChange={(v) => setConfig((c) => ({ ...c, screen: v }))}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="w-14 text-sm text-slate-300">{t("scheduleLabel")}</span>
+                <Segmented<"on" | "off">
+                  value={config.schEnabled ? "on" : "off"}
+                  options={[
+                    { v: "on", label: t("schedEnable") },
+                    { v: "off", label: t("schedDisable") },
+                  ]}
+                  onChange={(v) => setConfig((c) => ({ ...c, schEnabled: v === "on" }))}
+                />
+                {config.schEnabled && (
+                  <label className="flex items-center gap-2 text-sm text-slate-400">
+                    {t("schedOffLabel")}
+                    <input
+                      type="time"
+                      className={inputCls + " [color-scheme:dark]"}
+                      value={config.schOff}
+                      onChange={(e) =>
+                        setConfig((c) => ({ ...c, schOff: e.target.value || "23:30" }))
+                      }
+                    />
+                    {t("schedOnLabel")}
+                    <input
+                      type="time"
+                      className={inputCls + " [color-scheme:dark]"}
+                      value={config.schOn}
+                      onChange={(e) => setConfig((c) => ({ ...c, schOn: e.target.value || "07:00" }))}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+          </Panel>
+
           <Panel title={t("cpuRing")} right={<span className="text-xs text-slate-500">{t("topBottom")}</span>}>
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2">

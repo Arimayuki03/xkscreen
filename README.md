@@ -23,6 +23,7 @@
 
 - **Any data on the rings** — map each of the four numeric slots (CPU ring top/bottom, GPU ring top/bottom) to any of 19 live sources: CPU/GPU load, temperature, clock, power, voltage, fan RPM, RAM usage, network speed, disk activity — or fixed values.
 - **Full clock control** — follow system time, offset (fast/slow by N minutes), fixed display, **stopwatch** (MM:SS) and **countdown**, with start / pause / resume / reset buttons. Timer frames are aligned to the second boundary so the display ticks crisply.
+- **Screen power & schedule** — turn the display off/on with one click, or set a daily off-window (e.g. dark from 23:30 to 07:00, midnight wrap supported). While off, all frames pause — the panel goes dark and the driver idles — and resuming re-arms the device with a fresh handshake.
 - **Live web console** — the driver hosts the UI itself: open `http://127.0.0.1:8899/` in any browser, or use the frameless desktop window (WebView2). Chinese / English switchable, changes apply instantly.
 - **Lightweight by design** — compiled .NET driver at **~30 MB** resident memory (working set, periodically trimmed); zero cost when the console is closed; no Electron, no Node.js runtime.
 - **Config as code** — one `config.json` plus a local HTTP API (`/status`, `/config`) for scripts and automation.
@@ -75,7 +76,9 @@ Everything lives in `C:\ProgramData\XkScreen\config.json` (hot-reloaded; edits a
   "cpu": ["cpu_load", "cpu_temp"],
   "gpu": ["mem_pct", "net_down_x10"],
   "time": "auto",
-  "interval_ms": 500
+  "interval_ms": 500,
+  "screen": "on",
+  "schedule": { "off": "23:30", "on": "07:00" }
 }
 ```
 
@@ -109,12 +112,20 @@ Everything lives in `C:\ProgramData\XkScreen\config.json` (hot-reloaded; edits a
 | `timer_down:MM:SS` | countdown, stops at 00:00 |
 | `timer_down_paused:MM:SS` | frozen countdown display |
 
+### Screen power
+
+| Value | Meaning |
+|---|---|
+| `"screen": "on"` | display active (default) |
+| `"screen": "off"` | pause all frames — the panel goes dark |
+| `"schedule": {"off": "HH:MM", "on": "HH:MM"}` | optional daily off-window (wraps midnight automatically). Effective off = manual off **or** inside the window |
+
 ## 🌐 Local API
 
 The driver serves both the UI and a small JSON API on loopback only (`127.0.0.1:8899`):
 
 - `GET /` — the web console (also 200 for any asset under `/_next/...`)
-- `GET /status` — `{ ok, config, sensors, show }` (`show` = what the clock area currently displays)
+- `GET /status` — `{ ok, config, sensors, show, screen }` (`show` = what the clock area currently displays, `screen` = effective power state)
 - `POST /config` — validated config save (same schema as `config.json`)
 
 ## ⚠️ Known limitations
