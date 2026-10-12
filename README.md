@@ -22,9 +22,9 @@
 ## ✨ Features
 
 - **Any data on the rings** — map each of the four numeric slots (CPU ring top/bottom, GPU ring top/bottom) to any of 19 live sources: CPU/GPU load, temperature, clock, power, voltage, fan RPM, RAM usage, network speed, disk activity — or fixed values.
-- **Full clock control** — follow system time, offset (fast/slow by N minutes), fixed display, **stopwatch** (MM:SS) and **countdown**, with start / pause / resume / reset buttons. Timer frames are aligned to the second boundary so the display ticks crisply.
+- **Full clock control** — follow system time, offset (fast/slow by N minutes), fixed display, **stopwatch** (MM:SS), **countdown**, or **split mode**: drive the clock's two 2-digit groups independently with any data source or fixed value (`split:cpu_temp,mem_pct` → `44:47`; the colon is firmware-drawn). All with start / pause / resume / reset buttons. Timer frames are aligned to the second boundary so the display ticks crisply.
 - **Screen power & schedule** — turn the display off/on with one click, or set a daily off-window (e.g. dark from 23:30 to 07:00, midnight wrap supported). While off, all frames pause — the panel goes dark and the driver idles — and resuming re-arms the device with a fresh handshake.
-- **Live web console** — the driver hosts the UI itself: open `http://127.0.0.1:8899/` in any browser, or use the frameless desktop window (WebView2). Chinese / English switchable, changes apply instantly.
+- **Live web console** — the driver hosts the UI itself: open `http://127.0.0.1:8899/` in any browser, or use the frameless desktop window (WebView2) with a **tray icon** — hover to see live CPU/GPU/RAM, and the tray menu toggles the screen, opens the web UI, and chooses close-to-tray or exit. Chinese / English switchable, changes apply instantly.
 - **Lightweight by design** — compiled .NET driver at **~30 MB** resident memory (working set, periodically trimmed); zero cost when the console is closed; no Electron, no Node.js runtime.
 - **Config as code** — one `config.json` plus a local HTTP API (`/status`, `/config`) for scripts and automation.
 - **Persistent** — auto-starts at boot (scheduled task, SYSTEM) and keeps the screen alive at your chosen refresh rate (300 ms – 2 s).
@@ -106,6 +106,7 @@ Everything lives in `C:\ProgramData\XkScreen\config.json` (hot-reloaded; edits a
 | `auto` | follow system time |
 | `+90` / `-30` | fast / slow by N minutes |
 | `HH:MM` | freeze at a time (hour may be 0-99) |
+| `split:L,R` | map the clock's two 2-digit groups independently: any data-source token or fixed number per side (e.g. `split:cpu_temp,mem_pct` shows `44:47`) |
 | `timer` | stopwatch counting up (MM:SS) |
 | `timer_from:MM:SS` | stopwatch pre-set to a value |
 | `timer_paused:MM:SS` | frozen stopwatch display |

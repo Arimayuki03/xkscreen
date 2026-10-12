@@ -1,18 +1,43 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.IO;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
+using Drawing = System.Drawing;
+using WinForms = System.Windows.Forms;
 
 namespace XkScreen.Gui
 {
     public partial class MainWindow : Window
     {
+        private const string Api = "http://127.0.0.1:8899";
+        private static readonly HttpClient Http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr ShellExecute(IntPtr hwnd, string lpOperation, string lpFile, string lpParameters, string lpDirectory, int nShowCmd);
+
+        private WinForms.NotifyIcon tray;
+        private WinForms.ToolStripMenuItem miStatus;
+        private DispatcherTimer tipTimer;
+        private bool closeToTray = true;
+        private bool reallyExit;
+        private string lastStatusText = "连接中…";
+
         public MainWindow()
         {
             InitializeComponent();
             Loaded += OnLoaded;
+            Closing += OnClosing;
         }
+
+        // ---- window chrome ----
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -42,11 +67,201 @@ namespace XkScreen.Gui
 
         private void BtnClose_Click(object sender, RoutedEventArgs e)
         {
-            Close();
+            Close(); // Closing handler decides: hide to tray or exit
         }
+
+        private void OnClosing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (!reallyExit && closeToTray)
+            {
+                e.Cancel = true;
+                Hide();
+            }
+        }
+
+        private void RestoreWindow()
+        {
+            Show();
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            Activate();
+        }
+
+        // ---- tray ----
+
+        private void SetupTray()
+        {
+            tray = new WinForms.NotifyIcon();
+            try
+            {
+                tray.Icon = Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath);
+            }
+            catch { }
+            tray.Text = "XkScreen 屏幕控制台";
+
+            var menu = new WinForms.ContextMenuStrip();
+            var miShow = new WinForms.ToolStripMenuItem("显示窗口");
+            miShow.Click += (s, e) => RestoreWindow();
+            var miWeb = new WinForms.ToolStripMenuItem("在浏览器中打开");
+            miWeb.Click += (s, e) =>
+            {
+                // 固定本机 URL，交给 shell32 打开系统默认浏览器
+                try { ShellExecute(IntPtr.Zero, "open", "http://127.0.0.1:8899/", null, null, 1); } catch { }
+            };
+            miStatus = new WinForms.ToolStripMenuItem("连接中…") { Enabled = false };
+            var miOn = new WinForms.ToolStripMenuItem("打开屏幕");
+            miOn.Click += async (s, e) => await SetScreenAsync(true);
+            var miOff = new WinForms.ToolStripMenuItem("关闭屏幕");
+            miOff.Click += async (s, e) => await SetScreenAsync(false);
+            var miCloseMode = new WinForms.ToolStripMenuItem("关闭窗口时收进托盘")
+            {
+                CheckOnClick = true,
+                Checked = closeToTray,
+            };
+            miCloseMode.CheckedChanged += (s, e) =>
+            {
+                closeToTray = miCloseMode.Checked;
+                SaveGuiSettings();
+            };
+            var miExit = new WinForms.ToolStripMenuItem("退出程序");
+            miExit.Click += (s, e) =>
+            {
+                reallyExit = true;
+                try { tray.Visible = false; } catch { }
+                Close();
+            };
+
+            menu.Items.Add(miShow);
+            menu.Items.Add(miWeb);
+            menu.Items.Add(new WinForms.ToolStripSeparator());
+            menu.Items.Add(miStatus);
+            menu.Items.Add(new WinForms.ToolStripSeparator());
+            menu.Items.Add(miOn);
+            menu.Items.Add(miOff);
+            menu.Items.Add(new WinForms.ToolStripSeparator());
+            menu.Items.Add(miCloseMode);
+            menu.Items.Add(new WinForms.ToolStripSeparator());
+            menu.Items.Add(miExit);
+
+            tray.ContextMenuStrip = menu;
+            tray.DoubleClick += (s, e) => RestoreWindow();
+            tray.Visible = true;
+        }
+
+        // ---- live data for the tooltip / tray menu ----
+
+        private async Task UpdateStatusAsync()
+        {
+            try
+            {
+                string j = await Http.GetStringAsync(Api + "/status");
+                using JsonDocument doc = JsonDocument.Parse(j);
+                JsonElement root = doc.RootElement;
+                JsonElement s = root.GetProperty("sensors");
+                string cpu = Fmt(s, "cpu_load") + "%/" + Fmt(s, "cpu_temp") + "C";
+                string gpu = Fmt(s, "gpu_load") + "%/" + Fmt(s, "gpu_temp") + "C";
+                string mem = Fmt(s, "mem_pct") + "%";
+                bool off = root.TryGetProperty("screen", out JsonElement se) && se.GetString() == "off";
+                lastStatusText = "CPU " + cpu + "  GPU " + gpu + "  RAM " + mem + (off ? "  屏幕:关" : "");
+                RefreshTrayText();
+                if (miStatus != null) miStatus.Text = "CPU " + cpu + "   GPU " + gpu + "   内存 " + mem + (off ? "   屏幕已关闭" : "");
+            }
+            catch
+            {
+                lastStatusText = "未连接驱动服务";
+                RefreshTrayText();
+                if (miStatus != null) miStatus.Text = "未连接驱动服务（127.0.0.1:8899）";
+            }
+        }
+
+        private static string Fmt(JsonElement s, string key)
+        {
+            if (s.TryGetProperty(key, out JsonElement v) && v.ValueKind == JsonValueKind.Number)
+                return Math.Round(v.GetDouble()).ToString("0");
+            return "-";
+        }
+
+        private void RefreshTrayText()
+        {
+            try
+            {
+                if (tray == null) return;
+                string t = "XkScreen · " + lastStatusText;
+                if (t.Length > 63) t = t.Substring(0, 60) + "...";
+                tray.Text = t;
+            }
+            catch { }
+        }
+
+        /// <summary>Merge the current driver config with a screen off/on switch and save it.</summary>
+        private async Task SetScreenAsync(bool on)
+        {
+            try
+            {
+                string j = await Http.GetStringAsync(Api + "/status");
+                using JsonDocument doc = JsonDocument.Parse(j);
+                JsonElement cfg = doc.RootElement.GetProperty("config");
+                var body = new Dictionary<string, object>();
+                body["cpu"] = cfg.GetProperty("cpu").Clone();
+                body["gpu"] = cfg.GetProperty("gpu").Clone();
+                body["time"] = cfg.TryGetProperty("time", out JsonElement te) ? te.GetString() : "auto";
+                body["interval_ms"] = cfg.TryGetProperty("interval_ms", out JsonElement ie) ? ie.GetInt32() : 500;
+                body["screen"] = on ? "on" : "off";
+                if (cfg.TryGetProperty("schedule", out JsonElement sch) && sch.ValueKind == JsonValueKind.Object)
+                    body["schedule"] = sch.Clone();
+                using var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+                await Http.PostAsync(Api + "/config", content);
+                await UpdateStatusAsync();
+            }
+            catch { }
+        }
+
+        // ---- gui settings (close-to-tray preference) ----
+
+        private static string GuiSettingsPath()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "XkScreen", "gui.json");
+        }
+
+        private void LoadGuiSettings()
+        {
+            try
+            {
+                string p = GuiSettingsPath();
+                if (File.Exists(p))
+                {
+                    using JsonDocument d = JsonDocument.Parse(File.ReadAllText(p));
+                    if (d.RootElement.TryGetProperty("closeToTray", out JsonElement c))
+                        closeToTray = c.GetBoolean();
+                }
+            }
+            catch { }
+        }
+
+        private void SaveGuiSettings()
+        {
+            try
+            {
+                string p = GuiSettingsPath();
+                Directory.CreateDirectory(Path.GetDirectoryName(p));
+                File.WriteAllText(p, JsonSerializer.Serialize(new { closeToTray }));
+            }
+            catch { }
+        }
+
+        // ---- startup ----
 
         private async void OnLoaded(object sender, RoutedEventArgs e)
         {
+            LoadGuiSettings();
+            SetupTray();
+
+            tipTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            tipTimer.Tick += async (s, args) => await UpdateStatusAsync();
+            tipTimer.Start();
+            await UpdateStatusAsync();
+
             try
             {
                 // Keep the page's polling running even when the window is unfocused or
@@ -96,7 +311,7 @@ namespace XkScreen.Gui
                     }
                 };
                 Web.CoreWebView2.NavigationCompleted += handler;
-                Web.CoreWebView2.Navigate("http://127.0.0.1:8899/");
+                Web.CoreWebView2.Navigate(Api + "/");
             }
             catch (Exception ex)
             {

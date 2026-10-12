@@ -34,7 +34,6 @@ namespace XkScreen.Service
         private static MethodInfo miSetCpuDyn;
         private static MethodInfo miSetGpuDyn;
         private static MethodInfo miSetDeviceTime;
-        private static MethodInfo miCheckOnline;
 
         /// <summary>Effective screen power state (true = frames paused, display dark).</summary>
         private static bool screenOffState;
@@ -92,7 +91,6 @@ namespace XkScreen.Service
                 miSetCpuDyn = tWrap.GetMethod("SetCpuDynamicInfo");
                 miSetGpuDyn = tWrap.GetMethod("SetGpuDynamicInfo");
                 miSetDeviceTime = tWrap.GetMethod("SetDeviceTime");
-                miCheckOnline = tHelp.GetMethod("CheckOnlineDevice");
                 FieldInfo fiSendDelay = tHelp.GetField("usb_send_delay", BindingFlags.NonPublic | BindingFlags.Instance);
 
                 object help = Activator.CreateInstance(tHelp);
@@ -115,6 +113,23 @@ namespace XkScreen.Service
                     Log.Write("helper send_delay -> 120s (paused)");
                 }
                 else Log.Write("WARN: usb_send_delay not found");
+
+                // Shut the internal auto-send thread down for good: on its next wake it
+                // checks thread_flag first and exits without sending. Otherwise it keeps
+                // injecting one real-data frame every usb_send_delay ms behind our back,
+                // which made the display light up briefly while "screen off" paused our
+                // own frames (the periodic relight bug).
+                try
+                {
+                    FieldInfo fiThread = tHelp.GetField("thread_flag", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (fiThread != null)
+                    {
+                        fiThread.SetValue(help, false);
+                        Log.Write("internal send thread disabled (thread_flag=false)");
+                    }
+                    else Log.Write("WARN: thread_flag field not found");
+                }
+                catch (Exception tex) { Log.Write("thread_flag disable exc: " + tex.Message); }
 
                 Sensors.Init(help);
                 Config.EnsureDefault();
@@ -165,8 +180,6 @@ namespace XkScreen.Service
                             else
                             {
                                 Log.Write("screen ON - resuming");
-                                try { miCheckOnline.Invoke(help, null); }
-                                catch (Exception rex) { Log.Write("re-arm exc: " + rex.Message); }
                             }
                         }
 
@@ -188,7 +201,7 @@ namespace XkScreen.Service
                             byte[] rg = BuildRing(cfg.Gpu, sensors, "gpu");
                             if (rg != null) miSetGpuDyn.Invoke(null, new object[] { rg, (uint)8 });
 
-                            byte[] tframe = BuildTimeFrame(cfg.Time);
+                            byte[] tframe = BuildTimeFrame(cfg.Time, sensors);
                             Flush(tframe);
 
                             byte[] shown = tframe != null ? tframe : TimeBytesFromDateTime(DateTime.Now);
@@ -256,17 +269,37 @@ namespace XkScreen.Service
 
         /// <summary>
         /// Build the 9-byte time frame for the given spec, or null for "auto" (real time).
-        /// Specs: auto | +N | -N | HH:MM (hour 0-99 accepted; rendered as-is on screen) |
-        ///        timer (stopwatch MM:SS up) | timer_down:MM:SS (countdown to 00:00).
+        /// Specs: auto | +N | -N | HH:MM (hour 0-99 accepted) | timer | timer_from:MM:SS |
+        /// timer_paused:MM:SS | timer_down:MM:SS | timer_down_paused:MM:SS | split:L,R
+        /// ("split" drives the clock's two 2-digit groups independently from any data
+        /// source or fixed value - the colon between them is firmware-drawn).
         /// The screen clock area renders the frame's hour+minute bytes; timer modes
         /// put MM into the hour slot and SS into the minute slot to show MM:SS.
         /// </summary>
-        private static byte[] BuildTimeFrame(string spec)
+        private static byte[] BuildTimeFrame(string spec, Dictionary<string, double> sensors)
         {
             if (string.IsNullOrEmpty(spec) || spec == "auto") return null;
             try
             {
                 DateTime now = DateTime.Now;
+                if (spec.StartsWith("split:"))
+                {
+                    string[] toks = spec.Substring("split:".Length).Split(',');
+                    if (toks.Length == 2)
+                    {
+                        byte[] t = new byte[9];
+                        t[0] = (byte)(now.Year / 100);
+                        t[1] = (byte)(now.Year % 100);
+                        t[2] = (byte)now.Month;
+                        t[3] = (byte)now.Day;
+                        t[4] = (byte)(int)now.DayOfWeek;
+                        t[5] = Sensors.ResolveSlot(toks[0].Trim(), sensors); // left two digits
+                        t[6] = Sensors.ResolveSlot(toks[1].Trim(), sensors); // right two digits
+                        t[7] = 0;
+                        t[8] = 0;
+                        return t;
+                    }
+                }
                 if (spec.Length > 1 && (spec[0] == '+' || spec[0] == '-'))
                 {
                     int mins;

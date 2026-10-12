@@ -202,6 +202,19 @@ namespace XkScreen.Service
         private static bool IsValidTimeSpec(string s)
         {
             if (string.IsNullOrEmpty(s) || s == "auto" || s == "timer") return true;
+            if (s.StartsWith("split:"))
+            {
+                string[] toks = s.Substring("split:".Length).Split(',');
+                if (toks.Length != 2) return false;
+                for (int i = 0; i < 2; i++)
+                {
+                    string tk = toks[i].Trim();
+                    int dummy;
+                    if (int.TryParse(tk, out dummy)) continue;
+                    if (Array.IndexOf(KnownSources, tk) < 0) return false;
+                }
+                return true;
+            }
             if (s.StartsWith("timer_from:")) return IsValidMmSs(s.Substring("timer_from:".Length));
             if (s.StartsWith("timer_paused:")) return IsValidMmSs(s.Substring("timer_paused:".Length));
             if (s.StartsWith("timer_down_paused:")) return IsValidMmSs(s.Substring("timer_down_paused:".Length));

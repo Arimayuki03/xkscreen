@@ -17,6 +17,8 @@ type Config = {
   schEnabled: boolean;
   schOff: string;
   schOn: string;
+  splitL: string;
+  splitR: string;
 };
 
 const DEFAULT_CONFIG: Config = {
@@ -28,6 +30,8 @@ const DEFAULT_CONFIG: Config = {
   schEnabled: false,
   schOff: "23:30",
   schOn: "07:00",
+  splitL: "cpu_temp",
+  splitR: "mem_pct",
 };
 
 /** Map the UI state onto the driver's config schema. */
@@ -116,6 +120,10 @@ const UI = {
     schedDisable: "停用",
     schedOffLabel: "关闭时间",
     schedOnLabel: "开启时间",
+    modeSplit: "分格定制",
+    splitLeft: "左两位",
+    splitRight: "右两位",
+    splitHint: "冒号由固件固定显示；左右两组 2 位数字可分别映射任意数据源或固定值",
   },
   en: {
     title: "XkScreen Console",
@@ -169,6 +177,11 @@ const UI = {
     schedDisable: "Disable",
     schedOffLabel: "Off at",
     schedOnLabel: "On at",
+    modeSplit: "Custom split",
+    splitLeft: "Left 2 digits",
+    splitRight: "Right 2 digits",
+    splitHint:
+      "The colon is firmware-drawn; each 2-digit group maps to any data source or a fixed value",
   },
 } as const;
 
@@ -176,10 +189,11 @@ type UIKey = keyof (typeof UI)["zh"];
 
 const INTERVALS = [300, 500, 800, 1000, 1500, 2000];
 
-type ClockMode = "auto" | "offset" | "fixed" | "timer" | "timer_down";
+type ClockMode = "auto" | "offset" | "fixed" | "split" | "timer" | "timer_down";
 
 function modeOf(spec: string): ClockMode {
   if (!spec || spec === "auto") return "auto";
+  if (spec.startsWith("split:")) return "split";
   if (spec.startsWith("timer_down")) return "timer_down";
   if (spec.startsWith("timer")) return "timer";
   if (/^[+-]\d+$/.test(spec)) return "offset";
@@ -222,6 +236,13 @@ const displayOf = (spec: string, a: TimerAnchor, now: number): string => {
 
 function clamp99(n: number): number {
   return Math.max(0, Math.min(99, Math.round(n)));
+}
+
+/** Live value of one token (fixed number or data-source name) for slot badges. */
+function resolveLive(tok: string, sensors: Record<string, number>): number {
+  if (/^\d+$/.test(tok)) return clamp99(parseInt(tok, 10));
+  const v = sensors[tok];
+  return v === undefined ? 0 : clamp99(v);
 }
 
 function ringPreview(
@@ -698,6 +719,7 @@ export default function Home() {
         initialLoaded.current = true;
         const tt: string = j.config.time || "auto";
         const sch = j.config.schedule;
+        const msp = tt.match(/^split:([^,]+),(.+)$/);
         setConfig({
           cpu: j.config.cpu || ["auto", "auto"],
           gpu: j.config.gpu || ["auto", "auto"],
@@ -707,6 +729,8 @@ export default function Home() {
           schEnabled: !!sch,
           schOff: sch && sch.off ? String(sch.off) : "23:30",
           schOn: sch && sch.on ? String(sch.on) : "07:00",
+          splitL: msp ? msp[1].trim() : "cpu_temp",
+          splitR: msp ? msp[2].trim() : "mem_pct",
         });
         if (/^[+-]\d+$/.test(tt)) setOffsetN(parseInt(tt, 10));
         const mf = tt.match(/^(\d{1,2}):(\d{2})$/);
@@ -796,6 +820,7 @@ export default function Home() {
     if (m === "auto") applyTime("auto");
     else if (m === "offset") applyTime((offsetN >= 0 ? "+" : "-") + Math.abs(offsetN));
     else if (m === "fixed") applyTime(`${hhN}:${String(mmN).padStart(2, "0")}`);
+    else if (m === "split") applyTime(`split:${config.splitL},${config.splitR}`);
     else if (m === "timer") applyTime("timer_paused:00:00");
     else {
       setDownM(downM);
@@ -878,6 +903,7 @@ export default function Home() {
                   { v: "auto", label: t("modeAuto") },
                   { v: "offset", label: t("modeOffset") },
                   { v: "fixed", label: t("modeFixed") },
+                  { v: "split", label: t("modeSplit") },
                   { v: "timer", label: t("modeTimer") },
                   { v: "timer_down", label: t("modeTimerDown") },
                 ]}
@@ -926,6 +952,40 @@ export default function Home() {
                     }}
                   />
                   <span className="text-xs text-slate-500">{t("hourUpTo99")}</span>
+                </div>
+              )}
+
+              {mode === "split" && (
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-14 text-xs text-slate-500">{t("splitLeft")}</span>
+                      <div className="min-w-0 flex-1">
+                        <SlotEditor
+                          value={config.splitL}
+                          live={resolveLive(config.splitL, sensors)}
+                          lang={lang}
+                          onChange={(v) =>
+                            setConfig((c) => ({ ...c, splitL: v, time: `split:${v},${c.splitR}` }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-14 text-xs text-slate-500">{t("splitRight")}</span>
+                      <div className="min-w-0 flex-1">
+                        <SlotEditor
+                          value={config.splitR}
+                          live={resolveLive(config.splitR, sensors)}
+                          lang={lang}
+                          onChange={(v) =>
+                            setConfig((c) => ({ ...c, splitR: v, time: `split:${c.splitL},${v}` }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-xs text-slate-500">{t("splitHint")}</span>
                 </div>
               )}
 
