@@ -1,0 +1,6 @@
+{
+  "cpu": ["auto", "auto"],
+  "gpu": ["auto", "auto"],
+  "time": "45:30",
+  "interval_ms": 500
+}

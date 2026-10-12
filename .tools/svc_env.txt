@@ -1,0 +1,2 @@
+C:\Users\Arima\AppData\Local\Python\bin\python.exe
+17.23.3

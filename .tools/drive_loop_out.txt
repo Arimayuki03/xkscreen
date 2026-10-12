@@ -1,0 +1,10 @@
+open: 1 qty: 1
+11s: rounds=150
+22s: rounds=300
+33s: rounds=450
+44s: rounds=600
+54s: rounds=750
+65s: rounds=900
+76s: rounds=1050
+87s: rounds=1200
+done rounds: 1243

@@ -1,0 +1,5 @@
+Microsoft PnP 工具
+
+正在重启设备:         USB\ROOT_HUB30\5&1416ea97&0&0
+已成功重启设备。
+

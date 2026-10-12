@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "D:\Code\Xingcan-Xiaolan-Drive\.tools\frida_spawn_svc.py", line 47, in <module>
+    script = session.create_script(AGENT)
+             ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'int' object has no attribute 'create_script'

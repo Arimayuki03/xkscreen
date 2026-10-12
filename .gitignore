@@ -1,0 +1,31 @@
+# ===== build outputs =====
+**/bin/
+**/obj/
+**/out/
+**/.next/
+**/node_modules/
+*.tsbuildinfo
+
+# ===== vendor / third-party binaries (proprietary, not redistributable) =====
+*.dll
+*.exe
+official/
+extracted/
+decompiled/
+.tools/dlltest/
+
+# ===== runtime artifacts / logs / captures =====
+*.log
+*.pcap
+*.bin
+*.dmp
+*.tmp
+
+# ===== local tooling state =====
+.mimosa/
+**/.mimosa/
+__pycache__/
+**/__pycache__/
+.tools/*_trace.log
+.tools/pcap_run.txt
+.tools/task_u16.xml

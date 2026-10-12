@@ -1,0 +1,6 @@
+{
+  "cpu": ["auto", "auto"],
+  "gpu": ["mem_pct", "cpu_temp"],
+  "time": "auto",
+  "interval_ms": 500
+}

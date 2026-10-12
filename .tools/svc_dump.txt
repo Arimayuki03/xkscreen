@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "D:\Code\Xingcan-Xiaolan-Drive\.tools\frida_service.py", line 42, in <module>
+    session = frida.attach(40324)
+  File "C:\Users\Arima\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\frida\__init__.py", line 316, in attach
+    return get_local_device().attach(target, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Arima\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\frida\__init__.py", line 662, in attach
+    return _wrap(_invoke(self._impl.attach, (pid, _make_options(_frida.SessionOptions, kwargs, {'linker_notifier_offsets': 'add_linker_notifier_offset'}), )))
+                 ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Arima\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\frida\__init__.py", line 240, in _invoke
+    raise error
+frida.TransportError: the connection is closed

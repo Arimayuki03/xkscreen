@@ -1,0 +1,11 @@
+=== [1/5] start persistent driver ===
+=== [2/5] kill leftover service processes ===
+=== [3/5] install boot task (SYSTEM, ONSTART) ===
+成功: 成功创建计划任务 "XKScreenDriver"。
+=== [4/5] official service start type -> manual ===
+[SC] ChangeServiceConfig 成功
+=== [5/5] status ===
+--- driver log tail:
+2026-10-12 23:02:44	driver start
+2026-10-12 23:03:00	Start ok
+=== done ===

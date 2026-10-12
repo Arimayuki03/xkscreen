@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: #0a0d12;
+  color: #e5e7eb;
+  font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+  overflow: hidden;
+}
+
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* slim styled scrollbar for dropdown lists (overrides the global hide) */
+.dd-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+.dd-scroll::-webkit-scrollbar {
+  display: block;
+  width: 8px;
+}
+
+.dd-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dd-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+  border: 2px solid #0d1219;
+}
+
+.dd-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

@@ -1,0 +1,133 @@
+<div align="center">
+  <img src="docs/images/icon.png" width="96" alt="XkScreen icon"/>
+  <h1>XkScreen</h1>
+  <p><b>Open-source control suite for the Xingcan / XK003 chassis LCD</b><br/>
+  Put <i>any</i> sensor data on the little screen's CPU/GPU rings and clock — with a modern web console.</p>
+</div>
+
+<p align="center">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6?logo=windows11&logoColor=white"/>
+  <img alt=".NET Framework" src="https://img.shields.io/badge/.NET%20Framework-4.8-512BD4?logo=dotnet&logoColor=white"/>
+  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white"/>
+  <img alt="WebView2" src="https://img.shields.io/badge/UI-WebView2-0A84FF?logo=microsoftedge&logoColor=white"/>
+  <img alt="License" src="https://img.shields.io/github/license/Arimayuki03/xkscreen"/>
+  <img alt="Release" src="https://img.shields.io/github/v/release/Arimayuki03/xkscreen"/>
+  <img alt="Stars" src="https://img.shields.io/github/stars/Arimayuki03/xkscreen"/>
+</p>
+
+<p align="center"><b>English</b> | <a href="README.zh-CN.md">简体中文</a></p>
+
+![Console screenshot](docs/images/screenshot.png)
+
+## ✨ Features
+
+- **Any data on the rings** — map each of the four numeric slots (CPU ring top/bottom, GPU ring top/bottom) to any of 19 live sources: CPU/GPU load, temperature, clock, power, voltage, fan RPM, RAM usage, network speed, disk activity — or fixed values.
+- **Full clock control** — follow system time, offset (fast/slow by N minutes), fixed display, **stopwatch** (MM:SS) and **countdown**, with start / pause / resume / reset buttons. Timer frames are aligned to the second boundary so the display ticks crisply.
+- **Live web console** — the driver hosts the UI itself: open `http://127.0.0.1:8899/` in any browser, or use the frameless desktop window (WebView2). Chinese / English switchable, changes apply instantly.
+- **Lightweight by design** — compiled .NET driver at **~30 MB** resident memory (working set, periodically trimmed); zero cost when the console is closed; no Electron, no Node.js runtime.
+- **Config as code** — one `config.json` plus a local HTTP API (`/status`, `/config`) for scripts and automation.
+- **Persistent** — auto-starts at boot (scheduled task, SYSTEM) and keeps the screen alive at your chosen refresh rate (300 ms – 2 s).
+
+## 🔧 How it works
+
+The screen is a USB HID device (`VID_0145 / PID_1001`). Its firmware theme is **fixed**: the layout (two ring gauges + clock), the colors and the `%` / `℃` symbols are drawn by the device and cannot be changed. What *is* programmable — verified exhaustively in the [RE notes](docs/RE-NOTES.md) — is:
+
+1. **the numbers**: each ring area has two 2-digit slots (0-99) that can show any data you feed them;
+2. **the clock area**: an MM:SS style display you can drive with real time, offsets, or your own timers.
+
+XkScreen drives the device through the vendor's installed components (see Requirements) and re-implements the frame pipeline with a single-frame-per-cycle design, per-slot data overrides and an adaptive refresh scheduler.
+
+## 📦 Requirements
+
+| | |
+|---|---|
+| OS | Windows 10 / 11 x64 |
+| Vendor software | The original **SystemTemperatureMonitoring** (Xingcan screen utility) must be installed — XkScreen reuses its `XKWLib.dll` / `TempComm.dll` / `HardwareHelp64.dll` / CPUID SDK components for the device chain and hardware telemetry. **These files are not bundled in this repository.** |
+| Privileges | Administrator (the CPUID SDK needs driver-level hardware access to read sensors) |
+| Build tools | .NET SDK 8+, Node.js 20+ (frontend only) |
+
+Point XkScreen at the installed vendor folder with `--official-dir <path>`, the `XKSCREEN_VENDOR_DIR` environment variable, or a `vendor` folder next to the executable.
+
+## 🚀 Quick start (from source)
+
+```powershell
+# 1. frontend (Next.js static export)
+cd product\frontend
+npm install
+npm run build
+
+# 2. driver service + console (both non-trivial builds)
+cd ..\XkScreen.Service ; dotnet build -c Release
+cd ..\XkScreen.Gui     ; dotnet build -c Release
+
+# 3. run the driver (as Administrator) — then open http://127.0.0.1:8899/
+product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "D:\path\to\official"
+```
+
+The desktop console (`XkScreen.Gui.exe`) loads the UI from the driver itself and falls back to its embedded copy when the driver is not running.
+
+## ⚙️ Configuration
+
+Everything lives in `C:\ProgramData\XkScreen\config.json` (hot-reloaded; edits apply within ~0.4 s):
+
+```json
+{
+  "cpu": ["cpu_load", "cpu_temp"],
+  "gpu": ["mem_pct", "net_down_x10"],
+  "time": "auto",
+  "interval_ms": 500
+}
+```
+
+### Data sources (each slot shows at most 2 digits, 0-99)
+
+| Token | Shows | Scale |
+|---|---|---|
+| `auto` | vendor's real data for that ring | — |
+| `cpu_load` / `cpu_temp` | CPU usage % / package temperature | as-is |
+| `cpu_clock` | CPU clock | GHz ×10 (`52` = 5.2 GHz) |
+| `cpu_watt` / `cpu_watt10` | CPU package power | W (≤99) / W ÷10 (`15` = 150 W) |
+| `cpu_volt` | CPU voltage | V ×10 (`12` = 1.2 V) |
+| `gpu_load` / `gpu_temp` / `gpu_clock` / `gpu_fan` | GPU equivalents | fan: rpm ÷100 |
+| `mem_pct` / `mem_used_gb` | RAM usage % / used GB | as-is |
+| `net_down` / `net_up` | network download / upload | MB/s |
+| `net_down_x10` / `net_up_x10` | same, ×10 resolution | `12` = 1.2 MB/s |
+| `fan_rpm` | CPU fan | rpm ÷100 (`9` = 900 rpm) |
+| `hdd_load` | disk activity % | as-is |
+| a number, e.g. `50` | fixed value | literal |
+
+### Clock modes
+
+| Value | Meaning |
+|---|---|
+| `auto` | follow system time |
+| `+90` / `-30` | fast / slow by N minutes |
+| `HH:MM` | freeze at a time (hour may be 0-99) |
+| `timer` | stopwatch counting up (MM:SS) |
+| `timer_from:MM:SS` | stopwatch pre-set to a value |
+| `timer_paused:MM:SS` | frozen stopwatch display |
+| `timer_down:MM:SS` | countdown, stops at 00:00 |
+| `timer_down_paused:MM:SS` | frozen countdown display |
+
+## 🌐 Local API
+
+The driver serves both the UI and a small JSON API on loopback only (`127.0.0.1:8899`):
+
+- `GET /` — the web console (also 200 for any asset under `/_next/...`)
+- `GET /status` — `{ ok, config, sensors, show }` (`show` = what the clock area currently displays)
+- `POST /config` — validated config save (same schema as `config.json`)
+
+## ⚠️ Known limitations
+
+- **The screen theme is firmware-fixed** — layout, colors, labels and unit symbols cannot be changed (verified; see [RE notes](docs/RE-NOTES.md)).
+- **Two digits per slot** — values are clamped to 0-99; use the `÷10` / `×10` variants for large scales.
+- **Vendor runtime dependency** — the vendor DLLs are required at runtime and are not redistributed here; install the original software first.
+- Personal hobby project: some helper scripts under `.tools/` contain machine-specific absolute paths — adapt them to your environment.
+
+## 🙏 Acknowledgements & disclaimer
+
+Unofficial community tool for interoperability and educational purposes. Not affiliated with, endorsed by, or connected to Xingcan or any screen vendor. No vendor binaries are distributed in this repository; all protocol knowledge was obtained by reverse engineering the locally installed software for interoperability. Use at your own risk.
+
+## 📄 License
+
+[MIT](LICENSE)

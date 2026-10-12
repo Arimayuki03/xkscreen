@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- HWCX.dll 及其日志/配置需要落在 exe 同目录 -->
+    <CopyHwcx>true</CopyHwcx>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 官方安装目录的 TempComm.dll（Inno 流内雕刻版 DllMain 会 AV，弃用；见 RE-NOTES §5.2）-->
+    <None Include="..\..\official\TempComm.dll" Link="HWCX.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+</Project>

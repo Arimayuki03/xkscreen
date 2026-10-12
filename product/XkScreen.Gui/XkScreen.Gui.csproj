@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>XkScreen.Gui</AssemblyName>
+    <RootNamespace>XkScreen.Gui</RootNamespace>
+    <ApplicationIcon>appicon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="appicon.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+
+  <!-- Copy the built Next.js static export (frontend/out) into the app's web/ folder -->
+  <Target Name="CopyFrontend" AfterTargets="Build" Condition="Exists('$(MSBuildProjectDirectory)\..\frontend\out')">
+    <RemoveDir Directories="$(OutDir)web" />
+    <ItemGroup>
+      <FrontendFiles Include="$(MSBuildProjectDirectory)\..\frontend\out\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FrontendFiles)" DestinationFiles="@(FrontendFiles->'$(OutDir)web\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>
