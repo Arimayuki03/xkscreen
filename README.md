@@ -135,7 +135,24 @@ The driver serves both the UI and a small JSON API on loopback only (`127.0.0.1:
 - **Vendor runtime dependency** — the vendor DLLs are required at runtime and are not redistributed here; install the original software first.
 - Personal hobby project: some helper scripts under `.tools/` contain machine-specific absolute paths — adapt them to your environment.
 
-## 🙏 Acknowledgements & disclaimer
+## 🙏 Acknowledgements
+
+Special thanks to the projects and tools that made this work possible:
+
+- **[REA — Reverse Engineering Assistant](https://github.com/morluto/rea)** by [@morluto](https://github.com/morluto) — the reverse-engineering assistant that powered the protocol analysis, disassembly, decompilation and differential experiments behind this project. Its structured, evidence-first tooling shaped how the screen's capabilities were mapped out (see [RE notes](docs/RE-NOTES.md)).
+- [ILSpy / ilspycmd](https://github.com/icsharpcode/ILSpy) — .NET decompilation of the vendor libraries (`XKWLib.dll`, `HardwareHelp64.dll`), which revealed the complete data flow.
+- [Capstone](https://github.com/capstone-engine/capstone) & [pefile](https://github.com/erocarrera/pefile) — native disassembly and PE inspection of `TempComm.dll`.
+- [Frida](https://frida.re/) — runtime hooking that captured the real HID frame protocol (the "gold standard" recordings behind the final frame design).
+- [Unicorn Engine](https://www.unicorn-engine.org/) — emulation used to verify the packet builders.
+- [USBPcap](https://desowin.org/usbpcap/) & [innoextract](https://constexpr.org/innoextract/) — early capture/extraction attempts that shaped the final methodology.
+- [hidapi](https://github.com/libusb/hidapi) — direct HID experiments.
+- [Pillow](https://python-pillow.org/) — programmatic generation of the app icon.
+- The stacks this product is built on: **.NET Framework**, **WPF**, **Microsoft Edge WebView2** (console), and **Next.js / React / Tailwind CSS** (web UI).
+- The original vendor software's components (XKWLib / TempComm / CPUID SDK) — reused at runtime for the device chain and hardware telemetry; they are the interoperability reference this project builds upon.
+
+Developed with the assistance of the **ZCode** coding agent.
+
+## ⚖️ Disclaimer
 
 Unofficial community tool for interoperability and educational purposes. Not affiliated with, endorsed by, or connected to Xingcan or any screen vendor. No vendor binaries are distributed in this repository; all protocol knowledge was obtained by reverse engineering the locally installed software for interoperability. Use at your own risk.
 

@@ -135,7 +135,24 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
 - **依赖厂商运行时组件** —— 需要本地安装原版软件提供 DLL，本仓库不包含也不分发这些文件。
 - 个人爱好项目：`.tools/` 下部分辅助脚本含本机绝对路径，请按自己环境调整。
 
-## 🙏 致谢与免责声明
+## 🙏 致谢
+
+特别感谢以下项目与工具——它们让这项工作成为可能：
+
+- **[REA（Reverse Engineering Assistant 逆向工程助手）](https://github.com/morluto/rea)**（作者 [@morluto](https://github.com/morluto)）—— 本项目协议分析、反汇编、反编译与差分实验背后的逆向工程助手。其"证据优先"的结构化工具链，深刻影响了屏幕能力边界的测绘方式（见[逆向笔记](docs/RE-NOTES.md)）。
+- [ILSpy / ilspycmd](https://github.com/icsharpcode/ILSpy) —— 对厂商库（`XKWLib.dll`、`HardwareHelp64.dll`）的 .NET 反编译，还原出完整数据流。
+- [Capstone](https://github.com/capstone-engine/capstone) 与 [pefile](https://github.com/erocarrera/pefile) —— `TempComm.dll` 的原生反汇编与 PE 解析。
+- [Frida](https://frida.re/) —— 运行时 Hook，捕获到真实的 HID 报文协议（最终帧设计的"金标准"记录）。
+- [Unicorn Engine](https://www.unicorn-engine.org/) —— 用于验证组包函数的模拟执行。
+- [USBPcap](https://desowin.org/usbpcap/) 与 [innoextract](https://constexpr.org/innoextract/) —— 早期的抓包/解包尝试，塑造了最终的方法论。
+- [hidapi](https://github.com/libusb/hidapi) —— 直连 HID 实验。
+- [Pillow](https://python-pillow.org/) —— 程序化生成应用图标。
+- 本产品所依赖的技术栈：**.NET Framework**、**WPF**、**Microsoft Edge WebView2**（控制台）与 **Next.js / React / Tailwind CSS**（网页界面）。
+- 原版厂商软件的组件（XKWLib / TempComm / CPUID SDK）—— 运行时复用于设备链路与硬件遥测，是本项目赖以实现的互通参照物。
+
+本项目在 **ZCode** 编码智能体的协助下开发完成。
+
+## ⚖️ 免责声明
 
 本工具为互通性与学习目的的非官方社区项目，与星灿及任何屏幕厂商无关、未获其背书。仓库不包含任何厂商二进制文件；所有协议知识均来自对本地已安装软件为互通目的的逆向分析。使用风险自负。
 
