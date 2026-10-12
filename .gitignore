@@ -29,3 +29,10 @@ __pycache__/
 .tools/*_trace.log
 .tools/pcap_run.txt
 .tools/task_u16.xml
+
+# stray tool state
+/.v2c/
+
+# runtime leftovers at repo root
+/frida_child*.py
+/cold_progress.txt
