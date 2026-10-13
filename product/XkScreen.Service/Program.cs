@@ -107,18 +107,10 @@ namespace XkScreen.Service
                 if (!ok) { Log.Write("Start failed x30, exit 1"); return 1; }
                 Log.Write("Start ok");
 
-                if (fiSendDelay != null)
-                {
-                    fiSendDelay.SetValue(help, 120000);
-                    Log.Write("helper send_delay -> 120s (paused)");
-                }
-                else Log.Write("WARN: usb_send_delay not found");
-
-                // Shut the internal auto-send thread down for good: on its next wake it
-                // checks thread_flag first and exits without sending. Otherwise it keeps
-                // injecting one real-data frame every usb_send_delay ms behind our back,
-                // which made the display light up briefly while "screen off" paused our
-                // own frames (the periodic relight bug).
+                // Shut the internal auto-send thread down first: it keeps injecting
+                // one real-data frame every usb_send_delay ms behind our back, which
+                // made the display light up briefly while "screen off" paused our own
+                // frames (the periodic relight bug).
                 try
                 {
                     FieldInfo fiThread = tHelp.GetField("thread_flag", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -131,10 +123,87 @@ namespace XkScreen.Service
                 }
                 catch (Exception tex) { Log.Write("thread_flag disable exc: " + tex.Message); }
 
+                // Let any in-flight vendor init call finish before we touch the SDK:
+                // concurrent native Init2 calls crash with AccessViolationException.
+                Thread.Sleep(1500);
+
+                // Deterministic sensor init. The vendor initializes its hardware
+                // lazily inside the send thread we just stopped (`if (!hardware.
+                // InitState && !hardware.Start()) { sleep; retry; }`), and the
+                // one-shot Start() inside XKWLibHelp.Start() usually fails on the
+                // first attempt - so we finish the init ourselves here, on our own
+                // thread. InitState only stays false when the CPUID kernel driver
+                // cannot be loaded ("Driver error 5" = access denied): that needs an
+                // elevated / SYSTEM process (the boot-time scheduled task).
+                object hwObj = null;
+                try
+                {
+                    FieldInfo fiHw = tHelp.GetField("hardware", BindingFlags.NonPublic | BindingFlags.Instance);
+                    hwObj = fiHw != null ? fiHw.GetValue(help) : null;
+                }
+                catch { }
+                bool inited = false;
+                int initAttempt = 0;
+                if (hwObj != null)
+                {
+                    PropertyInfo piInit = hwObj.GetType().GetProperty("InitState");
+                    MethodInfo miHwStart = hwObj.GetType().GetMethod("Start");
+                    for (initAttempt = 1; initAttempt <= 40; initAttempt++)
+                    {
+                        inited = piInit != null && (bool)piInit.GetValue(hwObj, null);
+                        if (inited) break;
+                        try { miHwStart.Invoke(hwObj, null); }
+                        catch (Exception iex) { Log.Write("sensor init exc: " + iex.Message); }
+                        Thread.Sleep(250);
+                    }
+                    Log.Write(inited
+                        ? "sensor init ok (attempts=" + initAttempt + ")"
+                        : "WARN: sensor init failed x40 - CPUID driver not loaded (run elevated/SYSTEM)");
+
+                    // Every failed Start() call runs Stop() first, which kills the
+                    // SDK's 1s refresh thread - the only publisher while the send
+                    // thread is stopped. Re-arm it after the init settles.
+                    try
+                    {
+                        FieldInfo fiAuto = hwObj.GetType().GetField("_autoRefresh", BindingFlags.NonPublic | BindingFlags.Instance);
+                        MethodInfo miOpen = hwObj.GetType().GetMethod("OpenRefresh");
+                        if (miOpen != null && fiAuto != null && !(bool)fiAuto.GetValue(hwObj))
+                        {
+                            miOpen.Invoke(hwObj, new object[] { 1000 });
+                            Log.Write("sensor refresh thread re-armed (OpenRefresh 1000)");
+                        }
+                    }
+                    catch (Exception rex) { Log.Write("refresh re-arm exc: " + rex.Message); }
+                }
+                else Log.Write("WARN: hardware field not found, sensor init skipped");
+
+                if (fiSendDelay != null)
+                {
+                    fiSendDelay.SetValue(help, 120000);
+                    Log.Write("helper send_delay -> 120s (paused)");
+                }
+                else Log.Write("WARN: usb_send_delay not found");
+
                 Sensors.Init(help);
                 Config.EnsureDefault();
                 Log.Write("config: " + Config.ConfigPath);
                 StartHttpApi();
+
+                // Verify the sensor pipeline actually publishes values (the refresh
+                // thread needs one full cycle after a fresh init). This is the
+                // startup evidence that the screen will show real data.
+                try
+                {
+                    bool flow = false;
+                    for (int v = 0; v < 20 && !flow; v++)
+                    {
+                        Dictionary<string, double> probe = Sensors.GetSensors();
+                        flow = probe.ContainsKey("cpu_load");
+                        if (!flow) Thread.Sleep(1000);
+                    }
+                    Log.Write(flow ? "sensor data flowing" : "WARN: no sensor data after 20s");
+                }
+                catch (Exception vex) { Log.Write("sensor verify exc: " + vex.Message); }
 
                 // Trim the working set once the startup phase has settled: cold init
                 // pages (CPUid SDK setup etc.) are released and fault back on demand.
@@ -541,6 +610,7 @@ namespace XkScreen.Service
                 root["sensors"] = sensors;
                 root["show"] = LastShow;
                 root["screen"] = screenOffState ? "off" : "on";
+                root["sensors_active"] = sensors.ContainsKey("cpu_load");
                 WriteJson(res, root);
                 return;
             }
@@ -556,6 +626,15 @@ namespace XkScreen.Service
                 if (err == null) resp["ok"] = true;
                 else { resp["ok"] = false; resp["error"] = err; }
                 WriteJson(res, resp);
+                return;
+            }
+
+            if (req.HttpMethod == "GET" && path == "/raw")
+            {
+                Dictionary<string, object> root = new Dictionary<string, object>();
+                root["ok"] = true;
+                root["raw"] = Sensors.DumpRaw();
+                WriteJson(res, root);
                 return;
             }
 

@@ -1,5 +1,17 @@
 # Release Notes
 
+## XkScreen v0.1.3 — GPU fan & sensor init hardening
+
+### Added
+
+- **GPU fan reading** — the GPU run-data on this platform carries no fan value, the CPUID SDK's adapter-fan API returns `-1` and NVML's RPM API is unsupported, so the driver now reads the **NVIDIA NVML fan percentage** (`nvml.dll`, ships with the display driver). Verified live against `nvidia-smi` (40 % == 40 %); `0` when the zero-fan idle state has the fans physically stopped. The console label is now `GPU fan (%)`.
+- `/status` now reports `sensors_active` — `false` when the driver runs without sensor access; the console shows a warning banner so all-zero readings are never mistaken for real data.
+
+### Fixed
+
+- **Sensors could come up completely empty after a restart.** Root cause: the vendor SDK initializes its hardware *lazily inside its send thread's retry loop*, and the previous fix for the screen-relight bug (`thread_flag = false`) killed that retry loop together with the sender — whether sensors worked came down to a millisecond race. The driver now performs a deterministic init itself (stop the send thread → retry `hardware.Start()` until `InitState` → re-arm the SDK's `OpenRefresh` thread → verify the data pipeline before serving).
+- Sensor init needs the CPUID kernel driver, which can only be loaded elevated (`Driver error 5`); the driver now logs this clearly, and the restart helper script deploys and restarts elevated (one UAC prompt).
+
 ## XkScreen v0.1.2 — Split clock & tray
 
 ### Added

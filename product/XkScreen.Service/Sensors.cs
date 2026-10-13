@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Net.NetworkInformation;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace XkScreen.Service
 {
@@ -16,6 +17,7 @@ namespace XkScreen.Service
     internal static class Sensors
     {
         private static object sysData;
+        private static object hwObj;
         private static MethodInfo runDataMethod;
         private static readonly Dictionary<string, object> EnumMap = new Dictionary<string, object>();
         private static bool ready;
@@ -38,6 +40,7 @@ namespace XkScreen.Service
                 if (f == null) { Log.Write("sensors: hardware field not found"); return; }
                 object hw = f.GetValue(help);
                 if (hw == null) { Log.Write("sensors: hardware is null"); return; }
+                hwObj = hw;
                 PropertyInfo prop = hw.GetType().GetProperty("SystemData");
                 if (prop == null) { Log.Write("sensors: SystemData prop not found"); return; }
                 sysData = prop.GetValue(hw, null);
@@ -68,6 +71,89 @@ namespace XkScreen.Service
             if (!ready || !EnumMap.ContainsKey(key)) return null;
             try { return runDataMethod.Invoke(sysData, new object[] { EnumMap[key] }); }
             catch { return null; }
+        }
+
+        /// <summary>CPUID SDK object behind the hardware instance; re-resolved on
+        /// every call because CPUIDHardware.Start() recreates it.</summary>
+        private static object GetPSdk()
+        {
+            try
+            {
+                if (hwObj == null) return null;
+                FieldInfo f = hwObj.GetType().GetField("_pSdk", BindingFlags.NonPublic | BindingFlags.Instance);
+                return f != null ? f.GetValue(hwObj) : null;
+            }
+            catch { return null; }
+        }
+
+        // ---- NVIDIA NVML (nvml.dll ships with the display driver) ----
+        // The only GPU-fan source on this platform: the vendor run-data lacks a
+        // GPU "fan" key, the CPUID SDK's GetDisplayAdapterFanSpeed returns -1 for
+        // this card, and NVML's RPM API is unsupported (rc=25). The percentage
+        // API works and reads 0 with zero-fan idle (fans physically stopped).
+        [DllImport("nvml.dll")]
+        private static extern int nvmlInit_v2();
+        [DllImport("nvml.dll")]
+        private static extern int nvmlDeviceGetHandleByIndex_v2(uint index, out IntPtr dev);
+        [DllImport("nvml.dll")]
+        private static extern int nvmlDeviceGetFanSpeed(IntPtr dev, out uint speed);
+
+        private static bool nvmlTried;
+        private static IntPtr nvmlDev = IntPtr.Zero;
+
+        private static double ReadNvmlFanPct()
+        {
+            try
+            {
+                if (!nvmlTried)
+                {
+                    nvmlTried = true;
+                    try { nvmlInit_v2(); } catch { } // 5 = already initialised, fine
+                    IntPtr dev;
+                    if (nvmlDeviceGetHandleByIndex_v2(0, out dev) == 0) nvmlDev = dev;
+                }
+                if (nvmlDev == IntPtr.Zero) return -1;
+                uint pct;
+                if (nvmlDeviceGetFanSpeed(nvmlDev, out pct) != 0) { nvmlDev = IntPtr.Zero; return -1; }
+                return pct;
+            }
+            catch { return -1; }
+        }
+
+        /// <summary>
+        /// Debug helper for the /raw endpoint: every item of every data type as
+        /// plain key/value pairs (ToString for non-numeric values), so the actual
+        /// SDK field names are visible without a debugger.
+        /// </summary>
+        public static Dictionary<string, object> DumpRaw()
+        {
+            Dictionary<string, object> all = new Dictionary<string, object>();
+            string[] names = new string[] { "Cpu", "Gpu", "Network", "Ram", "HHD", "Fan" };
+            for (int n = 0; n < names.Length; n++)
+            {
+                List<object> rows = new List<object>();
+                object r = RunData(names[n]);
+                int size = r != null ? GetSize(r) : 0;
+                for (int i = 0; i < size; i++)
+                {
+                    Dictionary<string, object> d = GetItemAt(r, i);
+                    Dictionary<string, object> row = new Dictionary<string, object>();
+                    if (d != null)
+                    {
+                        foreach (KeyValuePair<string, object> kv in d)
+                        {
+                            object v = kv.Value;
+                            if (v == null) row[kv.Key] = null;
+                            else if (v is double || v is float) row[kv.Key] = Math.Round(Convert.ToDouble(v), 2);
+                            else if (v is int || v is long || v is short || v is byte || v is bool) row[kv.Key] = v;
+                            else row[kv.Key] = Convert.ToString(v, CultureInfo.InvariantCulture);
+                        }
+                    }
+                    rows.Add(row);
+                }
+                all[names[n]] = rows;
+            }
+            return all;
         }
 
         private static int GetSize(object item)
@@ -237,6 +323,36 @@ namespace XkScreen.Service
                         if (d.ContainsKey("temperature")) s["gpu_temp"] = ToDbl(d["temperature"]);
                         if (d.ContainsKey("clock")) s["gpu_clock"] = ToDbl(d["clock"]) / 100.0;
                         if (d.ContainsKey("fan")) s["gpu_fan"] = ToDbl(d["fan"]) / 100.0;
+                    }
+                }
+                catch { }
+            }
+
+            // GPU fan fallback: on this platform the GPU run-data dict carries no
+            // "fan" key (only name/temperature/load/clock). Prefer NVIDIA NVML's
+            // percentage reading; keep the CPUID SDK reading as a last resort for
+            // non-NVIDIA GPUs (-1 = unsupported / not initialised; values above 120
+            // look like RPM and are scaled to the two-digit slot, smaller ones are
+            // already a percentage).
+            if (!s.ContainsKey("gpu_fan"))
+            {
+                try
+                {
+                    double pct = ReadNvmlFanPct();
+                    if (pct >= 0) s["gpu_fan"] = pct;
+                }
+                catch { }
+            }
+            if (!s.ContainsKey("gpu_fan"))
+            {
+                try
+                {
+                    object pSdk = GetPSdk();
+                    MethodInfo mFan = pSdk != null ? pSdk.GetType().GetMethod("GetDisplayAdapterFanSpeed") : null;
+                    if (mFan != null)
+                    {
+                        double v = ToDbl(mFan.Invoke(pSdk, new object[] { 0 }));
+                        if (v >= 0) s["gpu_fan"] = v > 120 ? v / 100.0 : v;
                     }
                 }
                 catch { }

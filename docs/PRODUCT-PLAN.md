@@ -94,6 +94,20 @@
   - **桌面端托盘**（2026-10-13）：托盘图标（悬停显示 CPU/GPU/内存实时数据 + 屏幕状态）、
     右键菜单（显示窗口 / 浏览器打开 / 打开屏幕 / 关闭屏幕 / 关闭时收进托盘 / 退出）、
     关闭行为持久化到 `%ProgramData%\XkScreen\gui.json`
+  - **GPU 风扇数据 + 传感器初始化加固**（2026-10-13）：
+    根因 1：厂商 SDK 的硬件初始化是**懒加载在发送线程的重试循环里**（`thread_thread` 中
+    `if (!hardware.InitState && !hardware.Start()) { sleep; continue; }`），而
+    `XKWLibHelp.Start()` 里的一次性 `hardware.Start()` 首次必然失败——上次修复「周期性亮屏」
+    时把 `thread_flag` 置 false，把该重试循环一并杀掉，初始化成败变成毫秒级竞态（服务有时有数据、
+    有时全空）。修复：改由驱动自身**同步确定性初始化**（停止发送线程 → 重试 `hardware.Start()`
+    至 `InitState=true` → 重新武装 `OpenRefresh(1000)` 刷新线程 → 20 秒内验证数据流并写日志）。
+    根因 2：CPUID SDK 的 `Init2` 需要加载内核驱动（实测 `Driver error 5 = 拒绝访问`），
+    **服务必须以管理员/SYSTEM 运行**（计划任务即为 SYSTEM）；非提权启动时 `/status` 返回
+    `sensors_active:false`，控制台显示警示横幅，重启脚本改为提权部署（一次 UAC）。
+    根因 3：GPU 风扇在本平台无任何厂商数据源（GPU 字典无 `fan` 键、SDK 的
+    `GetDisplayAdapterFanSpeed` 返回 -1、NVML RPM 接口 rc=25 不支持），改用 **NVML 百分比**
+    （`nvml.dll` 随显卡驱动分发）：实测与 `nvidia-smi` 完全一致（40% == 40%），零风扇停转时为 0。
+    UI：`gpu_fan` 标签改为「GPU 风扇（%）」
 - [x] **M5 优化 + 开源发布**（2026-10-13 完成）：
   - **内存**：服务常驻 126 → **~28 MB**（启动后及每 10 分钟修剪冷工作集）；GUI 全树 514 → **476 MB**
     （WebView2 以 `--disable-gpu` 软件渲染）；界面关闭 = 零占用；无 Electron / Node 常驻

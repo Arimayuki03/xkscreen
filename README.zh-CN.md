@@ -44,7 +44,7 @@ XkScreen 通过厂商安装的组件驱动设备，并重新实现了帧管线�
 |---|---|
 | 系统 | Windows 10 / 11 x64 |
 | 厂商软件 | 必须已安装原版 **SystemTemperatureMonitoring**（星灿屏幕工具）—— XkScreen 复用其 `XKWLib.dll` / `TempComm.dll` / `HardwareHelp64.dll` / CPUID SDK 组件完成设备链路与硬件遥测。**这些文件不随本仓库分发。** |
-| 权限 | 管理员（CPUID SDK 需要驱动级硬件访问才能读取传感器） |
+| 权限 | 管理员（CPUID SDK 需要驱动级硬件访问才能读取传感器；非管理员启动将没有传感器数据，控制台会显示警示横幅） |
 | 构建工具 | .NET SDK 8+、Node.js 20+（仅前端构建需要） |
 
 可通过 `--official-dir <路径>`、环境变量 `XKSCREEN_VENDOR_DIR`，或程序旁放置 `vendor` 文件夹来指向已安装的厂商组件目录。
@@ -91,7 +91,8 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
 | `cpu_clock` | CPU 频率 | GHz ×10（`52` = 5.2 GHz） |
 | `cpu_watt` / `cpu_watt10` | CPU 封装功耗 | W（≤99）/ W ÷10（`15` = 150 W） |
 | `cpu_volt` | CPU 电压 | V ×10（`12` = 1.2 V） |
-| `gpu_load` / `gpu_temp` / `gpu_clock` / `gpu_fan` | GPU 对应项 | 风扇：rpm ÷100 |
+| `gpu_load` / `gpu_temp` / `gpu_clock` | GPU 对应项 | 频率：GHz ×10 |
+| `gpu_fan` | GPU 风扇负载 | % 0-99（NVIDIA NVML；`0` = 零风扇停转状态） |
 | `mem_pct` / `mem_used_gb` | 内存占用 % / 已用 GB | 原值 |
 | `net_down` / `net_up` | 网络 下载 / 上传 | MB/s |
 | `net_down_x10` / `net_up_x10` | 同上，×10 分辨率 | `12` = 1.2 MB/s |
@@ -126,7 +127,7 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
 驱动同时托管界面和一个小型 JSON API，仅监听回环地址（`127.0.0.1:8899`）：
 
 - `GET /` —— 网页控制台（`/_next/...` 下的静态资源同样 200）
-- `GET /status` —— `{ ok, config, sensors, show, screen }`（`show` = 时钟区当前实际显示内容，`screen` = 生效的电源状态）
+- `GET /status` —— `{ ok, config, sensors, show, screen, sensors_active }`（`show` = 时钟区当前实际显示内容，`screen` = 生效的电源状态，`sensors_active` = 服务无传感器权限时为 false）
 - `POST /config` —— 校验并保存配置（schema 同 `config.json`）
 
 ## ⚠️ 已知限制

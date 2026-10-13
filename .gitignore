@@ -36,3 +36,4 @@ __pycache__/
 # runtime leftovers at repo root
 /frida_child*.py
 /cold_progress.txt
+.tools/deploy_elevated_result.txt

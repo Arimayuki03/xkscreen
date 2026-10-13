@@ -44,7 +44,7 @@ XkScreen drives the device through the vendor's installed components (see Requir
 |---|---|
 | OS | Windows 10 / 11 x64 |
 | Vendor software | The original **SystemTemperatureMonitoring** (Xingcan screen utility) must be installed — XkScreen reuses its `XKWLib.dll` / `TempComm.dll` / `HardwareHelp64.dll` / CPUID SDK components for the device chain and hardware telemetry. **These files are not bundled in this repository.** |
-| Privileges | Administrator (the CPUID SDK needs driver-level hardware access to read sensors) |
+| Privileges | Administrator (the CPUID SDK needs driver-level hardware access to read sensors; a non-elevated start has no sensor data and the console shows a warning banner) |
 | Build tools | .NET SDK 8+, Node.js 20+ (frontend only) |
 
 Point XkScreen at the installed vendor folder with `--official-dir <path>`, the `XKSCREEN_VENDOR_DIR` environment variable, or a `vendor` folder next to the executable.
@@ -91,7 +91,8 @@ Everything lives in `C:\ProgramData\XkScreen\config.json` (hot-reloaded; edits a
 | `cpu_clock` | CPU clock | GHz ×10 (`52` = 5.2 GHz) |
 | `cpu_watt` / `cpu_watt10` | CPU package power | W (≤99) / W ÷10 (`15` = 150 W) |
 | `cpu_volt` | CPU voltage | V ×10 (`12` = 1.2 V) |
-| `gpu_load` / `gpu_temp` / `gpu_clock` / `gpu_fan` | GPU equivalents | fan: rpm ÷100 |
+| `gpu_load` / `gpu_temp` / `gpu_clock` | GPU equivalents | clock: GHz ×10 |
+| `gpu_fan` | GPU fan load | % 0-99 (NVIDIA NVML; `0` = zero-fan idle, fans physically stopped) |
 | `mem_pct` / `mem_used_gb` | RAM usage % / used GB | as-is |
 | `net_down` / `net_up` | network download / upload | MB/s |
 | `net_down_x10` / `net_up_x10` | same, ×10 resolution | `12` = 1.2 MB/s |
@@ -126,7 +127,7 @@ Everything lives in `C:\ProgramData\XkScreen\config.json` (hot-reloaded; edits a
 The driver serves both the UI and a small JSON API on loopback only (`127.0.0.1:8899`):
 
 - `GET /` — the web console (also 200 for any asset under `/_next/...`)
-- `GET /status` — `{ ok, config, sensors, show, screen }` (`show` = what the clock area currently displays, `screen` = effective power state)
+- `GET /status` — `{ ok, config, sensors, show, screen, sensors_active }` (`show` = what the clock area currently displays, `screen` = effective power state, `sensors_active` = false when the service runs without sensor access)
 - `POST /config` — validated config save (same schema as `config.json`)
 
 ## ⚠️ Known limitations

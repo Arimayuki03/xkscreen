@@ -57,7 +57,7 @@ const SOURCES: { key: string; zh: string; en: string }[] = [
   { key: "gpu_load", zh: "GPU 占用 %", en: "GPU usage %" },
   { key: "gpu_temp", zh: "GPU 温度 ℃", en: "GPU temp ℃" },
   { key: "gpu_clock", zh: "GPU 频率（15 = 1.5GHz）", en: "GPU clock (15 = 1.5GHz)" },
-  { key: "gpu_fan", zh: "GPU 风扇（21 = 2100转）", en: "GPU fan (21 = 2100rpm)" },
+  { key: "gpu_fan", zh: "GPU 风扇（%）", en: "GPU fan (%)" },
   { key: "mem_pct", zh: "内存占用 %", en: "RAM usage %" },
   { key: "mem_used_gb", zh: "内存已用 GB", en: "RAM used GB" },
   { key: "net_down", zh: "下载速度 MB/s", en: "Download MB/s" },
@@ -81,6 +81,8 @@ const UI = {
     applyOffline: "应用失败：无法连接服务",
     connected: "驱动服务已连接",
     disconnected: "未连接",
+    sensorsInactive:
+      "传感器未激活：请以管理员身份运行驱动（或使用计划任务启动），当前读数不可信",
     previewHint: "屏幕实际显示内容 · 每格最多 2 位数字",
     refreshRate: "刷新频率",
     timesPerSec: "次/秒",
@@ -137,6 +139,8 @@ const UI = {
     applyOffline: "Apply failed: cannot reach the service",
     connected: "Driver service connected",
     disconnected: "Disconnected",
+    sensorsInactive:
+      "Sensors inactive: run the driver elevated (or via the scheduled task) — readings are not live",
     previewHint: "What the screen is showing · 2 digits per slot max",
     refreshRate: "Refresh rate",
     timesPerSec: "/s",
@@ -638,6 +642,7 @@ export default function Home() {
   const [show, setShow] = useState("");
   const [screenEff, setScreenEff] = useState<"on" | "off">("on");
   const [connected, setConnected] = useState(false);
+  const [sensorsActive, setSensorsActive] = useState(true);
   const [msg, setMsg] = useState<{ k: MsgKey; d?: string }>({ k: "connecting" });
 
   // clock input fields (kept locally, applied on change)
@@ -683,6 +688,7 @@ export default function Home() {
       const r = await fetch(API + "/status", { cache: "no-store" });
       const j = await r.json();
       setConnected(true);
+      setSensorsActive(j.sensors_active !== false);
       setSensors(j.sensors || {});
       setShow(j.show || "");
       setScreenEff(j.screen === "off" ? "off" : "on");
@@ -865,6 +871,13 @@ export default function Home() {
           />
         </div>
       </div>
+
+      {/* sensor pipeline warning */}
+      {connected && !sensorsActive && (
+        <div className="flex-none rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs text-amber-300">
+          {t("sensorsInactive")}
+        </div>
+      )}
 
       {/* hero preview */}
       <div className="flex flex-none items-center justify-between gap-4 rounded-2xl border border-slate-800/80 bg-black px-10 py-4">
