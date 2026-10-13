@@ -50,6 +50,17 @@ XkScreen 通过厂商安装的组件驱动设备，并重新实现了帧管线�
 
 可通过 `--official-dir <路径>`、环境变量 `XKSCREEN_VENDOR_DIR`，或程序旁放置 `vendor` 文件夹来指向已安装的厂商组件目录。
 
+## 📥 安装
+
+**A. 一键安装包（推荐）** —— 从 [Releases](https://github.com/Arimayuki03/xkscreen/releases) 下载 `XkScreen-Setup-*.exe`，双击运行（需要管理员权限，会弹一次 UAC 确认）：
+
+- 自动检测已安装的原版 **SystemTemperatureMonitoring** 并复制其必要组件（请先安装原版——这些组件不随本仓库分发）
+- 安装到 `C:\XkScreen`（刻意选择无空格路径：本机的任务计划器会拒绝带空格的目标路径）
+- 注册开机自启任务（SYSTEM）＋ 每小时**看门狗**（服务意外退出自动拉起；运行满 48 小时主动重启一次，绕开任务计划器默认 72 小时运行上限）
+- 创建开始菜单/桌面快捷方式，安装结束可选择立即启动控制台；卸载入口在开始菜单，卸载时保留 `%ProgramData%\XkScreen\config.json` 配置
+
+**B. 从源码运行**（开发/自定义构建）—— 见下方。
+
 ## 🚀 快速开始（源码构建）
 
 ```powershell

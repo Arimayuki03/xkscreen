@@ -37,3 +37,9 @@ __pycache__/
 /frida_child*.py
 /cold_progress.txt
 .tools/deploy_elevated_result.txt
+
+# installer output
+/dist/
+
+# diagnostic outputs
+.tools/*_result.txt

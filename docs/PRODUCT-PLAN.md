@@ -127,7 +127,14 @@
   - **已发布**：<https://github.com/Arimayuki03/xkscreen> （公开）+ `v0.1.0` Release
   - 备忘：本地提交会被安全扫描器复扫构建产物（框架压缩代码的固定误报）——提交前需临时移除
     `official/web` 与 GUI 的 `bin/...\web` 两个生成目录，提交后恢复
-- [ ] **M3 安装包**：Inno Setup 一体化 + 自启 + 卸载 + 官方服务降级
+- [x] **M3 安装包**（2026-10-13 完成）：Inno Setup 一体化安装包（`installer/XkScreen.iss`），
+  安装到 `C:\XkScreen`（刻意无空格）、自动检测并复制原版组件（7 个 DLL）、注册开机自启 + 每小时看门狗、
+  开始菜单/桌面快捷方式、中文向导（UTF-8 BOM）、卸载器（保留 ProgramData 配置）。
+  两种构建：公开版（不含厂商二进制，安装时从原版复制）与个人内置版（`/DEmbedVendor=1`，DLL 打进包内）。
+  实机验证：安装/静默安装、任务创建、服务以 SYSTEM 运行、传感器数据、看门狗自愈（杀掉服务 3 秒内拉回）。
+  平台坑（已绕过并记录）：本机 Task Scheduler 对 1) 带空格的目标路径 2) 未签名 .exe 作为任务目标
+  一律返回 E_FAIL（CIM/PowerShell 注册通道亦不可用）→ 任务改为指向 `service_host.cmd`（cmd 前台托管服务）；
+  schtasks 默认 72 小时运行上限 → 看门狗 48 小时主动重启重置
 - [ ] **M4 替换上线**：移除 PS 方案（计划任务 XKScreenDriver），切换为产品
 - [ ] **M5 优化**：实测内存/CPU，调默认刷新率
 

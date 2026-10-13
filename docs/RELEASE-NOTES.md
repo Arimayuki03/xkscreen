@@ -1,5 +1,18 @@
 # Release Notes
 
+## XkScreen v0.2.0 — One-click installer
+
+### Added
+
+- **One-click installer** (`XkScreen-Setup-0.2.0.exe`, Inno Setup, Chinese wizard): detects an installed copy of the original software and copies the vendor components it needs, installs the driver + web console + desktop console to `C:\XkScreen`, registers boot autostart and start-menu/desktop shortcuts, and starts the driver before the wizard closes. An uninstaller (Start menu → 卸载 XkScreen) removes everything; your `config.json` is kept.
+- **Hourly watchdog task** — restarts the driver if the process ever dies, and proactively every 48 h. (Tasks created via `schtasks` inherit a default 72 h execution-time limit that would otherwise blank the screen every 3 days; the watchdog resets it.)
+- `installer/` in the repository: the Inno script supports a public build (vendor-free; components are copied from the user's own original install at install time) and a personal build with the vendor DLLs embedded (`iscc /DEmbedVendor=1 /DVendorDir=<official>`).
+
+### Notes
+
+- Install path is deliberately **space-free** (`C:\XkScreen`): on this Windows build the Task Scheduler returns `E_FAIL` for task targets containing spaces, and it also refuses unsigned `.exe` targets — the driver task therefore runs `service_host.cmd`, which hosts the service in the foreground.
+- The packaged service includes the v0.1.4 animation engine and the GPU-fan / sensor-init work from v0.1.3.
+
 ## XkScreen v0.1.4 — Screen animations
 
 ### Added
