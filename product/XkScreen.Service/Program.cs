@@ -850,6 +850,15 @@ namespace XkScreen.Service
                 return;
             }
 
+            if (req.HttpMethod == "GET" && path == "/sensors")
+            {
+                Dictionary<string, object> root = new Dictionary<string, object>();
+                root["ok"] = true;
+                root["sensors"] = Sensors.DumpSdkSensors();
+                WriteJson(res, root);
+                return;
+            }
+
             // Static UI: serve the built frontend from the "web" folder next to the
             // service, so the console is also usable from any browser at
             // http://127.0.0.1:8899/ (same-origin, no CORS involved).

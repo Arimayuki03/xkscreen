@@ -436,22 +436,25 @@ function NumInput({
   max,
   onChange,
   width = "w-20",
+  pad = false,
 }: {
   value: number;
   min: number;
   max: number;
   onChange: (n: number) => void;
   width?: string;
+  pad?: boolean;
 }) {
   return (
     <input
-      type="number"
+      type="text"
+      inputMode="numeric"
       className={inputCls + " text-center tabular-nums " + width}
-      value={value}
-      min={min}
-      max={max}
+      value={pad ? String(value).padStart(2, "0") : String(value)}
       onChange={(e) => {
-        const n = parseInt(e.target.value, 10);
+        const raw = e.target.value.replace(/[^0-9]/g, "");
+        if (raw === "") return;
+        const n = parseInt(raw, 10);
         if (!isNaN(n)) onChange(Math.max(min, Math.min(max, n)));
       }}
     />
@@ -678,6 +681,7 @@ function SlotEditor({
           max={99}
           onChange={(n) => onChange(String(n))}
           width="w-20"
+          pad
         />
       ) : (
         <span className="min-w-14 rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1.5 text-center text-sm tabular-nums text-slate-400">
@@ -1042,6 +1046,7 @@ export default function Home() {
                     min={0}
                     max={99}
                     width="w-16"
+                    pad
                     onChange={(n) => {
                       setHhN(n);
                       applyTime(`${n}:${String(mmN).padStart(2, "0")}`);
@@ -1053,6 +1058,7 @@ export default function Home() {
                     min={0}
                     max={59}
                     width="w-16"
+                    pad
                     onChange={(n) => {
                       setMmN(n);
                       applyTime(`${hhN}:${String(n).padStart(2, "0")}`);
@@ -1230,7 +1236,7 @@ export default function Home() {
                     {t("schedOffLabel")}
                     <input
                       type="time"
-                      className={inputCls + " [color-scheme:dark]"}
+                      className={inputCls + " w-[112px] [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70"}
                       value={config.schOff}
                       onChange={(e) =>
                         setConfig((c) => ({ ...c, schOff: e.target.value || "23:30" }))
@@ -1239,7 +1245,7 @@ export default function Home() {
                     {t("schedOnLabel")}
                     <input
                       type="time"
-                      className={inputCls + " [color-scheme:dark]"}
+                      className={inputCls + " w-[112px] [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70"}
                       value={config.schOn}
                       onChange={(e) => setConfig((c) => ({ ...c, schOn: e.target.value || "07:00" }))}
                     />
@@ -1277,30 +1283,35 @@ export default function Home() {
                 />
               </div>
               {config.effect !== "off" && (
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="w-20 text-sm text-slate-300">{t("fxTarget")}</span>
-                  <Segmented<string>
-                    value={config.effTarget}
-                    options={[
-                      { v: "clock", label: t("fxTClock") },
-                      { v: "rings", label: t("fxTRings") },
-                      { v: "all", label: t("fxTAll") },
-                    ]}
-                    onChange={(v) => setConfig((c) => ({ ...c, effTarget: v }))}
-                  />
-                  <span className="text-sm text-slate-300">{t("fxSpeedLabel")}</span>
-                  <Segmented<string>
-                    value={config.effSpeed}
-                    options={[
-                      { v: "60", label: "60" },
-                      { v: "90", label: "90" },
-                      { v: "120", label: "120" },
-                      { v: "200", label: "200" },
-                      { v: "350", label: "350" },
-                    ]}
-                    onChange={(v) => setConfig((c) => ({ ...c, effSpeed: v }))}
-                  />
-                </div>
+                <>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="w-20 text-sm text-slate-300">{t("fxTarget")}</span>
+                    <Segmented<string>
+                      value={config.effTarget}
+                      options={[
+                        { v: "clock", label: t("fxTClock") },
+                        { v: "rings", label: t("fxTRings") },
+                        { v: "all", label: t("fxTAll") },
+                      ]}
+                      onChange={(v) => setConfig((c) => ({ ...c, effTarget: v }))}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="w-20 text-sm text-slate-300">{t("fxSpeedLabel")}</span>
+                    <Segmented<string>
+                      value={config.effSpeed}
+                      options={[
+                        { v: "60", label: "60" },
+                        { v: "90", label: "90" },
+                        { v: "120", label: "120" },
+                        { v: "200", label: "200" },
+                        { v: "350", label: "350" },
+                      ]}
+                      onChange={(v) => setConfig((c) => ({ ...c, effSpeed: v }))}
+                    />
+                    <span className="text-xs text-slate-500">ms</span>
+                  </div>
+                </>
               )}
               <div className="flex flex-wrap items-center gap-3">
                 <span className="w-20 text-sm text-slate-300">{t("fxPlay")}</span>

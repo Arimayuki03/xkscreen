@@ -1,5 +1,20 @@
 # Release Notes
 
+## XkScreen v0.2.7 — Clock, voltage and console fixes
+
+### Fixed
+
+- **CPU clock** was pinned at the nominal 3.5 GHz: on this platform `CallNtPowerInformation`'s `CurrentMhz` reports the nominal clock even at 4.8 GHz under load. It is now computed the way Task Manager computes its "Speed" — nominal × the OS `% Processor Performance` counter — and **verified live: 3.98–4.24 GHz idle → 4.67–4.83 GHz under full load**.
+- **CPU voltage** showed the vendor's static `VID (max)` spec value (1.21 V, never moving). The driver now reads the **live `VCORE` sensor** (sensor class 4096, motherboard SIO through the vendor driver): 1.12 V measured on this machine.
+- Console fixes:
+  - the fixed-time hour/minute inputs now keep their leading zero (`09` instead of `9`) — numeric inputs are text-mode with a 2-digit pad, and the fixed-value slot inputs pad too;
+  - the schedule time pickers no longer overflow their cell (explicit width + indicator styling);
+  - the animation panel puts "区域 / 速度" on two separate, aligned rows instead of one wrapping line.
+
+### Added
+
+- `GET /sensors` — the complete vendor-SDK sensor inventory (device, class, name, value), so it is auditable which sensors exist and which are live. This is how the live `VCORE`, `+12V`, `+5V`, `+3.3V` rails were found.
+
 ## XkScreen v0.2.6 — Branding, About & usage guide
 
 ### Added
