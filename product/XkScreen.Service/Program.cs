@@ -48,6 +48,13 @@ namespace XkScreen.Service
         /// <summary>Previous countdown value, for one-shot effects on 00:00.</summary>
         private static int lastRemainSec;
 
+        /// <summary>Hardware sampling cadence (our own, replacing the vendor thread).</summary>
+        private static DateTime nextSampleAt = DateTime.MinValue;
+
+        /// <summary>Cycles between official CPU/GPU frames (≈1 s worth).</summary>
+        private static int officialCycle;
+        private static int officialEvery = 2;
+
         /// <summary>Stopwatch / countdown state (reset whenever the spec string changes).</summary>
         private sealed class TimerState
         {
@@ -167,20 +174,31 @@ namespace XkScreen.Service
                         ? "sensor init ok (attempts=" + initAttempt + ")"
                         : "WARN: sensor init failed x40 - CPUID driver not loaded (run elevated/SYSTEM)");
 
-                    // Every failed Start() call runs Stop() first, which kills the
-                    // SDK's 1s refresh thread - the only publisher while the send
-                    // thread is stopped. Re-arm it after the init settles.
-                    try
+                // Take over the sampling cadence. The vendor DLL's refresh thread runs a
+                // full WMI/CPUID sampling pass every second - it is the driver's single
+                // biggest CPU cost (~10 % of one core). Stop it and let the main loop
+                // call the sampling on its own schedule (1 s / 5 s while the screen is
+                // off). CloseRefresh aborts the vendor thread, so run it off-thread.
+                try
+                {
+                    MethodInfo miClose = hwObj.GetType().GetMethod("CloseRefresh");
+                    if (miClose != null)
                     {
-                        FieldInfo fiAuto = hwObj.GetType().GetField("_autoRefresh", BindingFlags.NonPublic | BindingFlags.Instance);
-                        MethodInfo miOpen = hwObj.GetType().GetMethod("OpenRefresh");
-                        if (miOpen != null && fiAuto != null && !(bool)fiAuto.GetValue(hwObj))
+                        Thread closeThread = new Thread(delegate ()
                         {
-                            miOpen.Invoke(hwObj, new object[] { 1000 });
-                            Log.Write("sensor refresh thread re-armed (OpenRefresh 1000)");
-                        }
+                            try
+                            {
+                                miClose.Invoke(hwObj, null);
+                                Log.Write("vendor refresh thread stopped; sampling on our cadence");
+                            }
+                            catch (Exception cex) { Log.Write("CloseRefresh exc: " + cex.Message); }
+                        });
+                        closeThread.IsBackground = true;
+                        closeThread.Start();
                     }
-                    catch (Exception rex) { Log.Write("refresh re-arm exc: " + rex.Message); }
+                    else Log.Write("WARN: CloseRefresh not found");
+                }
+                catch (Exception rex) { Log.Write("refresh takeover exc: " + rex.Message); }
                 }
                 else Log.Write("WARN: hardware field not found, sensor init skipped");
 
@@ -204,6 +222,7 @@ namespace XkScreen.Service
                     bool flow = false;
                     for (int v = 0; v < 20 && !flow; v++)
                     {
+                        Sensors.Sample(); // drive the sampling ourselves
                         Dictionary<string, double> probe = Sensors.GetSensors();
                         flow = probe.ContainsKey("cpu_load");
                         if (!flow) Thread.Sleep(1000);
@@ -242,6 +261,16 @@ namespace XkScreen.Service
                         Config cfg = Config.Load();
                         interval = cfg.IntervalMs;
                         timeSpec = cfg.Time;
+                        officialEvery = Math.Max(1, 1000 / Math.Max(1, interval));
+
+                        // Hardware sampling cadence (we drive the vendor DLL's sampling
+                        // ourselves): 1 s normally, 5 s while the screen is dark - nothing
+                        // is displayed then, so the driver can idle at ~0 % CPU.
+                        if (DateTime.Now >= nextSampleAt)
+                        {
+                            Sensors.Sample();
+                            nextSampleAt = DateTime.Now.AddMilliseconds(screenOffState ? 5000 : 1000);
+                        }
 
                         // Screen power: master switch + optional daily off-window.
                         // Pausing all frames blanks the display (it has no power-loss
@@ -277,14 +306,17 @@ namespace XkScreen.Service
                                 lastSensors = Sensors.GetSensors();
                                 lastHeavyMs = DateTime.Now;
 
-                                // Push hardware data ourselves in the official frame formats.
-                                // This replaces SendDynamicDataNew entirely so each cycle emits
-                                // exactly ONE time frame - no more occasional real-time flashes
-                                // while a custom clock (timer/offset/fixed) is active.
-                                byte[] cpuArr = Sensors.BuildCpuArray();
-                                if (cpuArr != null) miSetCpuDyn.Invoke(null, new object[] { cpuArr, (uint)cpuArr.Length });
-                                byte[] gpuArr = Sensors.BuildGpuArray();
-                                if (gpuArr != null) miSetGpuDyn.Invoke(null, new object[] { gpuArr, (uint)gpuArr.Length });
+                                // The official CPU/GPU frames carry the per-core/per-GPU
+                                // values the SDK refreshes at ~1 Hz anyway, so send them
+                                // about once per second; the time frame keeps flowing every
+                                // cycle (that is the frame the display latches onto).
+                                if (++officialCycle % officialEvery == 0)
+                                {
+                                    byte[] cpuArr = Sensors.BuildCpuArray();
+                                    if (cpuArr != null) miSetCpuDyn.Invoke(null, new object[] { cpuArr, (uint)cpuArr.Length });
+                                    byte[] gpuArr = Sensors.BuildGpuArray();
+                                    if (gpuArr != null) miSetGpuDyn.Invoke(null, new object[] { gpuArr, (uint)gpuArr.Length });
+                                }
                             }
                             Dictionary<string, double> sensors = lastSensors != null ? lastSensors : Sensors.GetSensors();
 
@@ -757,6 +789,41 @@ namespace XkScreen.Service
                 }
                 catch (Exception fex) { resp["ok"] = false; resp["error"] = "exc: " + fex.Message; }
                 WriteJson(res, resp);
+                return;
+            }
+
+            if (req.HttpMethod == "GET" && path == "/perf")
+            {
+                Dictionary<string, object> root = new Dictionary<string, object>();
+                root["ok"] = true;
+                try
+                {
+                    System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+                    for (int k = 0; k < 5; k++) Sensors.Sample();
+                    root["sample_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds / 5, 2);
+
+                    sw.Restart();
+                    for (int k = 0; k < 20; k++) Sensors.GetSensors();
+                    root["getSensors_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds / 20, 2);
+
+                    sw.Restart();
+                    for (int k = 0; k < 20; k++) Sensors.BuildCpuArray();
+                    root["buildCpu_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds / 20, 2);
+
+                    sw.Restart();
+                    for (int k = 0; k < 20; k++) Sensors.BuildGpuArray();
+                    root["buildGpu_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds / 20, 2);
+
+                    sw.Restart();
+                    for (int k = 0; k < 50; k++) Config.Load();
+                    root["config_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds / 50, 3);
+
+                    Config pc = Config.Load();
+                    root["interval_ms"] = pc.IntervalMs;
+                    root["officialEvery"] = officialEvery;
+                }
+                catch (Exception pex) { root["error"] = pex.Message; }
+                WriteJson(res, root);
                 return;
             }
 

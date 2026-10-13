@@ -62,12 +62,21 @@ namespace XkScreen.Service
             catch (Exception ex) { Log.Write("config init exc: " + ex.Message); }
         }
 
+        /// <summary>Config is read many times per second (main loop + every /status
+        /// poll); cache the parsed object and re-read only when the file changes.</summary>
+        private static Config cachedCfg;
+        private static DateTime cachedMtime = DateTime.MinValue;
+        private static long cachedSize = -1;
+
         public static Config Load()
         {
             Config c = new Config();
             try
             {
-                if (!File.Exists(FilePath)) return c;
+                FileInfo fi = new FileInfo(FilePath);
+                if (!fi.Exists) return c;
+                if (cachedCfg != null && fi.LastWriteTimeUtc == cachedMtime && fi.Length == cachedSize)
+                    return cachedCfg;
                 string txt = File.ReadAllText(FilePath, Encoding.UTF8);
                 JavaScriptSerializer ser = new JavaScriptSerializer();
                 Dictionary<string, object> root = ser.Deserialize<Dictionary<string, object>>(txt);
@@ -121,6 +130,9 @@ namespace XkScreen.Service
                     string ee = Convert.ToString(root["effect_on_timer_end"]).Trim().ToLowerInvariant();
                     if (ee == "none" || Effects.IsValidOneShot(ee)) c.EffectOnTimerEnd = ee;
                 }
+                cachedCfg = c;
+                cachedMtime = fi.LastWriteTimeUtc;
+                cachedSize = fi.Length;
             }
             catch (Exception ex) { Log.Write("config load exc: " + ex.Message); }
             return c;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Net.NetworkInformation;
 using System.Reflection;
@@ -19,6 +20,13 @@ namespace XkScreen.Service
         private static object sysData;
         private static object hwObj;
         private static MethodInfo runDataMethod;
+        private static MethodInfo readRunDataMethod;
+        private static MethodInfo addRunDataMethod;
+        private static ConstructorInfo dataItemCtor;
+        private static readonly Dictionary<string, MethodInfo> runGetters = new Dictionary<string, MethodInfo>();
+        private static PerformanceCounter diskCounter;
+        private static bool diskCounterTried;
+        private static DateTime lastDiskWmi = DateTime.MinValue;
         private static readonly Dictionary<string, object> EnumMap = new Dictionary<string, object>();
         private static bool ready;
 
@@ -53,6 +61,38 @@ namespace XkScreen.Service
                 }
                 if (runDataMethod == null) { Log.Write("sensors: GetSystemRunData not found"); return; }
 
+                // The sampling entry point (the vendor's own refresh thread calls it
+                // once per second; we take that over so the cadence is ours).
+                readRunDataMethod = hw.GetType().GetMethod("ReadRunData");
+
+                // Publishing plumbing so we can run *individual* getters instead of
+                // the vendor's all-in-one pass: SystemData.AddSystemRunData(new
+                // DataItem(type, list)). The all-in-one pass also runs GetNetwork
+                // (~WMI performance counters) and GetWin32_DiskDrive; both cost tens
+                // of milliseconds of CPU per pass and we do not need either (network
+                // rates are sampled from adapter counters, disk activity comes from a
+                // PDH counter).
+                foreach (MethodInfo m in sysData.GetType().GetMethods())
+                {
+                    if (m.Name == "AddSystemRunData" && m.GetParameters().Length == 1) { addRunDataMethod = m; break; }
+                }
+                Type enumType = runDataMethod.GetParameters()[0].ParameterType;
+                foreach (string g in new string[] { "GetCpuRunInfo", "GetGpuRunInfo", "GetRAMRunInfo", "GetFanSpeed" })
+                {
+                    MethodInfo gm = hw.GetType().GetMethod(g);
+                    if (gm != null) runGetters[g] = gm;
+                }
+                if (addRunDataMethod != null)
+                {
+                    Type itemType = addRunDataMethod.GetParameters()[0].ParameterType;
+                    foreach (KeyValuePair<string, MethodInfo> kv in runGetters)
+                    {
+                        dataItemCtor = itemType.GetConstructor(new Type[] { enumType, kv.Value.ReturnType });
+                        if (dataItemCtor != null) break;
+                    }
+                }
+                Log.Write("sampling: getters=" + runGetters.Count + " publisher=" + (dataItemCtor != null));
+
                 Type et = runDataMethod.GetParameters()[0].ParameterType;
                 string[] names = new string[] { "Cpu", "Gpu", "Network", "Ram", "HHD", "Fan" };
                 for (int i = 0; i < names.Length; i++)
@@ -71,6 +111,48 @@ namespace XkScreen.Service
             if (!ready || !EnumMap.ContainsKey(key)) return null;
             try { return runDataMethod.Invoke(sysData, new object[] { EnumMap[key] }); }
             catch { return null; }
+        }
+
+        /// <summary>Run one hardware sampling pass and publish the values our
+        /// display uses (CPU / GPU / RAM / fan). Deliberately does NOT run the
+        /// vendor's all-in-one ReadRunData: its network and disk getters go through
+        /// WMI performance counters and cost tens of milliseconds of CPU per pass,
+        /// while the four getters here take ~1 ms each. Network rates come from our
+        /// own adapter sampling and disk activity from a PDH counter.</summary>
+        private static readonly string[,] SampledTypes = {
+            { "GetCpuRunInfo", "Cpu" },
+            { "GetGpuRunInfo", "Gpu" },
+            { "GetRAMRunInfo", "Ram" },
+            { "GetFanSpeed", "Fan" },
+        };
+
+        public static bool Sample()
+        {
+            if (dataItemCtor == null || addRunDataMethod == null || hwObj == null)
+            {
+                // Fallback: the vendor's all-in-one pass (also samples network/disk).
+                if (readRunDataMethod == null || hwObj == null) return false;
+                try { return (bool)readRunDataMethod.Invoke(hwObj, null); }
+                catch { return false; }
+            }
+            bool any = false;
+            for (int i = 0; i < SampledTypes.GetLength(0); i++)
+            {
+                string getter = SampledTypes[i, 0];
+                string type = SampledTypes[i, 1];
+                try
+                {
+                    MethodInfo gm;
+                    if (!runGetters.TryGetValue(getter, out gm)) continue;
+                    object list = gm.Invoke(hwObj, null);
+                    if (list == null) continue;
+                    object item = dataItemCtor.Invoke(new object[] { EnumMap[type], list });
+                    addRunDataMethod.Invoke(sysData, new object[] { item });
+                    any = true;
+                }
+                catch { }
+            }
+            return any;
         }
 
         /// <summary>CPUID SDK object behind the hardware instance; re-resolved on
@@ -188,18 +270,30 @@ namespace XkScreen.Service
 
         /// <summary>
         /// Sum traffic across all up network adapters and derive MB/s from the
-        /// byte delta since the previous sample. Cached when called within 200ms
-        /// so frequent /status polls do not zero the reading.
+        /// byte delta since the previous sample. The (long) adapter list is cached
+        /// for 30 s and the byte counters are re-read at most every 400 ms, so the
+        /// driver loop and concurrent /status polls share one read.
         /// </summary>
+        private static NetworkInterface[] ifaceCache;
+        private static DateTime ifaceCacheAt = DateTime.MinValue;
+
         private static void SampleNet(out double downMb, out double upMb)
         {
             downMb = cachedDownMb;
             upMb = cachedUpMb;
             try
             {
+                DateTime now = DateTime.Now;
+                if (now - lastNetTime < TimeSpan.FromMilliseconds(400) && lastNetTime != DateTime.MinValue)
+                    return;
+                if (ifaceCache == null || (now - ifaceCacheAt).TotalSeconds > 30)
+                {
+                    ifaceCache = NetworkInterface.GetAllNetworkInterfaces();
+                    ifaceCacheAt = now;
+                }
                 long rx = 0;
                 long tx = 0;
-                foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
+                foreach (NetworkInterface ni in ifaceCache)
                 {
                     if (ni.OperationalStatus != OperationalStatus.Up) continue;
                     try
@@ -213,7 +307,6 @@ namespace XkScreen.Service
                     }
                     catch { }
                 }
-                DateTime now = DateTime.Now;
                 if (lastNetRx >= 0 && lastNetTime != DateTime.MinValue)
                 {
                     double dt = (now - lastNetTime).TotalSeconds;
@@ -447,18 +540,40 @@ namespace XkScreen.Service
                 catch { }
             }
 
-            // ---- HDD ----
-            object h = RunData("HHD");
-            int hsize = h != null ? GetSize(h) : 0;
-            if (hsize > 0)
+            // ---- HDD activity (PDH counter: ~0.1 ms; the vendor's WMI disk getter
+            // costs ~89 ms per pass, so it survives only as a throttled fallback) ----
+            try
             {
-                try
+                if (!diskCounterTried)
                 {
-                    Dictionary<string, object> d = GetItemAt(h, 0);
-                    if (d != null && d.ContainsKey("load")) s["hdd_load"] = ToDbl(d["load"]);
+                    diskCounterTried = true;
+                    try
+                    {
+                        diskCounter = new PerformanceCounter("PhysicalDisk", "% Disk Time", "_Total", true);
+                        diskCounter.NextValue();
+                    }
+                    catch { diskCounter = null; }
                 }
-                catch { }
+                if (diskCounter != null)
+                {
+                    double v = diskCounter.NextValue();
+                    if (v < 0) v = 0;
+                    if (v > 99) v = 99;
+                    s["hdd_load"] = v;
+                }
+                else if ((DateTime.Now - lastDiskWmi).TotalSeconds >= 5)
+                {
+                    lastDiskWmi = DateTime.Now;
+                    object h = RunData("HHD");
+                    int hsize = h != null ? GetSize(h) : 0;
+                    if (hsize > 0)
+                    {
+                        Dictionary<string, object> d = GetItemAt(h, 0);
+                        if (d != null && d.ContainsKey("load")) s["hdd_load"] = ToDbl(d["load"]);
+                    }
+                }
             }
+            catch { }
 
             return s;
         }

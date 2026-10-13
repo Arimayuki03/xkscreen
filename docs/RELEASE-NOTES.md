@@ -1,5 +1,25 @@
 # Release Notes
 
+## XkScreen v0.2.2 — 12× lower CPU
+
+### Changed
+
+- **The driver now samples the hardware itself instead of letting the vendor DLL do a full pass.** The vendor's all-in-one `ReadRunData` also runs a network getter (WMI performance counters) and a disk getter (WMI `Win32_DiskDrive`) — together tens of milliseconds of CPU per pass — even though XkScreen computes network rates from adapter counters and only needs disk activity. The driver now calls just the four cheap getters it uses (CPU / GPU / RAM / fan, ≈1 ms each) and publishes them itself; disk activity comes from a PDH counter (`PhysicalDisk\% Disk Time`).
+- Sampling cadence is also ours now (the vendor's 1 Hz refresh thread is stopped): 1 s normally, 5 s while the screen is dark.
+- Minor: config file is re-parsed only when it changes; the official CPU/GPU frames go out ≈1×/s (the SDK refreshes at that rate anyway) while the time frame still flows every cycle; network adapter list is cached for 30 s.
+
+**Measured on the target machine** (20 logical cores, `Get-Counter` on `\Process(XkScreen.Service)\% Processor Time`):
+
+| Scenario | Before | After |
+|---|---|---|
+| Idle, screen on | 10.79 % of one core (≈ 0.54 % in Task Manager) | **0.90 %** (≈ 0.045 %) |
+| Console open (2 s /status polling) | ≈ 13 % | **1.71 %** |
+| Screen off (night schedule) | 3.28 % | **0.92 %** |
+
+### Added
+
+- `GET /perf` — a tiny self-check endpoint returning the measured cost of one sampling pass and of the per-cycle read/frame building (`sample_ms`, `getSensors_ms`, `buildCpu_ms`, …).
+
 ## XkScreen v0.2.1 — Tray memory fix
 
 ### Fixed

@@ -26,7 +26,7 @@
 - **Screen animations** — turn the digits into light: a **pipeline** (numbers flowing across the display), **marquee** (`88` racing through the cells like an RGB chase), **digital rain**, **wave**, **counter** and **glitch** modes, each with its own target (clock / rings / all) and speed. One-shot shows include the **Steins;Gate divergence-meter scramble** (digits flicker, then lock onto the real values one by one), a **boot scan** and a **glitch burst** — and the scramble can fire automatically on screen-on or when a countdown hits 00:00.
 - **Screen power & schedule** — turn the display off/on with one click, or set a daily off-window (e.g. dark from 23:30 to 07:00, midnight wrap supported). While off, all frames pause — the panel goes dark and the driver idles — and resuming re-arms the device with a fresh handshake.
 - **Live web console** — the driver hosts the UI itself: open `http://127.0.0.1:8899/` in any browser, or use the frameless desktop window (WebView2) with a **tray icon** — hover to see live CPU/GPU/RAM, and the tray menu toggles the screen, opens the web UI, and chooses close-to-tray or exit. Closing to the tray **releases the WebView2 process tree** (the console idles at ≈ 35 MB instead of ≈ 490 MB) and reopening rebuilds the UI; a second launch just brings the window back. Chinese / English switchable, changes apply instantly.
-- **Lightweight by design** — compiled .NET driver at **~30 MB** resident memory (working set, periodically trimmed); zero cost when the console is closed; no Electron, no Node.js runtime.
+- **Lightweight by design** — compiled .NET driver at **~30 MB** resident memory (working set, periodically trimmed) and **≈ 0.05 % CPU idle** (0.9 % of one core; it drives the vendor's sampling itself and skips the multi-tens-of-ms WMI getters it does not need). Console costs nothing when closed; no Electron, no Node.js runtime.
 - **Config as code** — one `config.json` plus a local HTTP API (`/status`, `/config`) for scripts and automation.
 - **Persistent** — auto-starts at boot (scheduled task, SYSTEM) and keeps the screen alive at your chosen refresh rate (300 ms – 2 s).
 
@@ -175,6 +175,7 @@ The driver serves both the UI and a small JSON API on loopback only (`127.0.0.1:
 - `GET /status` — `{ ok, config, sensors, show, screen, sensors_active }` (`show` = what the clock area currently displays, `screen` = effective power state, `sensors_active` = false when the service runs without sensor access)
 - `POST /config` — validated config save (same schema as `config.json`)
 - `POST /effect` — play a one-shot animation: `{"name":"steinsgate","target":"all","duration_ms":3200,"speed_ms":90}` (`name` = `steinsgate` | `boot` | `burst` | `stop`)
+- `GET /perf` — timing self-check of one sampling pass and of the per-cycle sensor read / frame building
 
 ## ⚠️ Known limitations
 
