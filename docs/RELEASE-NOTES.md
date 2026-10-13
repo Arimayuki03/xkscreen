@@ -1,5 +1,20 @@
 # Release Notes
 
+## XkScreen v0.2.5 — Live metrics from native sources
+
+### Changed
+
+- **CPU load, CPU clock and the GPU utilisation/clock/temperature are now read from native, live sources** instead of the vendor SDK's cached counters:
+  - `cpu_load` — `GetSystemTimes` deltas (the standard OS metric, the same one most monitoring tools show; Task Manager's "% Processor Utility" reads somewhat higher on boosting CPUs, and the two converge under sustained load);
+  - `cpu_clock` — the highest current (effective) core clock via `CallNtPowerInformation`;
+  - `gpu_load` / `gpu_clock` / `gpu_temp` — NVML, the same source nvidia-smi reads (measured **exactly equal** to nvidia-smi: 39.8 °C vs 39.8 °C).
+- The vendor's `RefreshInformation()` call (needed by v0.2.4's fix) is gone again: it costs ~100 ms of CPU per call, and with native sources it is no longer needed. Sampling now takes **0.27 ms** (was 539 ms in v0.2.1).
+
+### Verified
+
+- Service CPU: **0.6 % of one core idle** (≈ 0.03 % in Task Manager) — the lowest yet.
+- Ten-second parallel comparison against nvidia-smi and the Windows counters: GPU temperature identical, GPU load/clock tracking, CPU load tracking.
+
 ## XkScreen v0.2.4 — Data accuracy + console polish
 
 ### Fixed

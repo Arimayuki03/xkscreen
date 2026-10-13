@@ -136,6 +136,10 @@
     `cpu_load`/`cpu_clock` 冻结在旧值（实测负载下 load 19→48%、clock 26.9→52.9 恢复正常）；
     数据全项审计（对 nvidia-smi / 系统计数器）通过。UI：下拉弹层最小 250px 宽（长标签完整显示）、
     分格定制改整行宽、动画面板触发行拆两行对齐
+  - **数据源改为原生实时**（v0.2.5）：`RefreshInformation`（~100ms CPU/次）弃用——
+    `cpu_load` 改用 `GetSystemTimes` 差分（标准 OS 口径）、`cpu_clock` 用 `CallNtPowerInformation`
+    有效频率、GPU 利用率/频率/温度直读 NVML（与 nvidia-smi 实测完全一致 39.8==39.8）；
+    采样 0.27ms、待机 **0.6% 单核**（TM ≈0.03%）；官方帧（屏幕圆环的 auto 数据）同步用我们的实时值
   - **存储**：GUI 内置副本构建时先清目录（去陈留新 ~800KB）；产品静态资源 ~1.6MB；node_modules 仅构建期
   - **开源**：README 中英双语（徽标/截图/快速开始/数据源与时钟规格表/API）+ MIT + .gitignore 严排除厂商二进制与构建产物
   - **已发布**：<https://github.com/Arimayuki03/xkscreen> （公开）+ `v0.1.0` Release

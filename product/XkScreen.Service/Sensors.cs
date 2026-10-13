@@ -23,8 +23,6 @@ namespace XkScreen.Service
         private static MethodInfo readRunDataMethod;
         private static MethodInfo addRunDataMethod;
         private static ConstructorInfo dataItemCtor;
-        private static MethodInfo refreshInfoMethod;
-        private static Type refreshInfoType;
         private static readonly Dictionary<string, MethodInfo> runGetters = new Dictionary<string, MethodInfo>();
         private static PerformanceCounter diskCounter;
         private static bool diskCounterTried;
@@ -138,26 +136,6 @@ namespace XkScreen.Service
                 catch { return false; }
             }
             bool any = false;
-            try
-            {
-                // The vendor's ReadRunData() override calls CPUIDSDK.RefreshInformation()
-                // before sampling: it makes the SDK re-read its frequency/load counters.
-                // Skipping it leaves cpu_load and cpu_clock frozen at their last-refreshed
-                // values (temperature and power are read live and keep moving), so our
-                // slim sampler must do it explicitly.
-                object pSdk = GetPSdk();
-                if (pSdk != null)
-                {
-                    Type t = pSdk.GetType();
-                    if (refreshInfoMethod == null || refreshInfoType != t)
-                    {
-                        refreshInfoType = t;
-                        refreshInfoMethod = t.GetMethod("RefreshInformation");
-                    }
-                    if (refreshInfoMethod != null) refreshInfoMethod.Invoke(pSdk, null);
-                }
-            }
-            catch { }
             for (int i = 0; i < SampledTypes.GetLength(0); i++)
             {
                 string getter = SampledTypes[i, 0];
@@ -201,11 +179,95 @@ namespace XkScreen.Service
         private static extern int nvmlDeviceGetHandleByIndex_v2(uint index, out IntPtr dev);
         [DllImport("nvml.dll")]
         private static extern int nvmlDeviceGetFanSpeed(IntPtr dev, out uint speed);
+        [DllImport("nvml.dll")]
+        private static extern int nvmlDeviceGetTemperature(IntPtr dev, int sensor, out uint temp);
+        [DllImport("nvml.dll")]
+        private static extern int nvmlDeviceGetUtilizationRates(IntPtr dev, out NvmlUtilization util);
+        [DllImport("nvml.dll")]
+        private static extern int nvmlDeviceGetClockInfo(IntPtr dev, int type, out uint mhz);
 
-        private static bool nvmlTried;
-        private static IntPtr nvmlDev = IntPtr.Zero;
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NvmlUtilization { public uint Gpu; public uint Memory; }
 
-        private static double ReadNvmlFanPct()
+        // ---- cheap native CPU metrics (no WMI, no vendor refresh call) ----
+        [DllImport("kernel32.dll")]
+        private static extern bool GetSystemTimes(out long idleTime, out long kernelTime, out long userTime);
+
+        [DllImport("powrprof.dll")]
+        private static extern uint CallNtPowerInformation(int informationLevel, IntPtr inputBuffer,
+            uint inputBufferSize, IntPtr outputBuffer, uint outputBufferSize);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ProcessorPowerInformation
+        {
+            public uint Number;
+            public uint MaxMhz;
+            public uint CurrentMhz;
+            public uint MhzLimit;
+            public uint MaxIdleState;
+            public uint CurrentIdleState;
+        }
+
+        private static long lastSysIdle, lastSysKernel, lastSysUser;
+        private static bool sysTimesPrimed;
+        private static double cpuLoadEma = -1;
+
+        /// <summary>Total CPU load from GetSystemTimes deltas - the standard OS
+        /// metric Task Manager is built on - lightly smoothed like a task manager
+        /// readout. Returns -1 until the first delta is available.</summary>
+        private static double TotalCpuLoad()
+        {
+            try
+            {
+                long idle, kernel, user;
+                if (!GetSystemTimes(out idle, out kernel, out user)) return cpuLoadEma;
+                if (!sysTimesPrimed)
+                {
+                    sysTimesPrimed = true;
+                    lastSysIdle = idle; lastSysKernel = kernel; lastSysUser = user;
+                    return cpuLoadEma;
+                }
+                long di = idle - lastSysIdle, dk = kernel - lastSysKernel, du = user - lastSysUser;
+                lastSysIdle = idle; lastSysKernel = kernel; lastSysUser = user;
+                long total = dk + du; // kernel time includes idle time
+                if (total <= 0) return cpuLoadEma;
+                double raw = (total - di) * 100.0 / total;
+                if (raw < 0) raw = 0;
+                if (raw > 100) raw = 100;
+                cpuLoadEma = cpuLoadEma < 0 ? raw : cpuLoadEma * 0.5 + raw * 0.5;
+                return cpuLoadEma;
+            }
+            catch { return cpuLoadEma; }
+        }
+
+        /// <summary>Highest current (effective) core clock in MHz via
+        /// CallNtPowerInformation - the same value task managers display.</summary>
+        private static double MaxCoreMhz()
+        {
+            try
+            {
+                int n = Environment.ProcessorCount;
+                int one = Marshal.SizeOf(typeof(ProcessorPowerInformation));
+                IntPtr buf = Marshal.AllocHGlobal(one * n);
+                try
+                {
+                    if (CallNtPowerInformation(11, IntPtr.Zero, 0, buf, (uint)(one * n)) != 0) return -1;
+                    uint max = 0;
+                    long baseAddr = buf.ToInt64();
+                    for (int i = 0; i < n; i++)
+                    {
+                        ProcessorPowerInformation p = (ProcessorPowerInformation)Marshal.PtrToStructure(
+                            new IntPtr(baseAddr + i * one), typeof(ProcessorPowerInformation));
+                        if (p.CurrentMhz > max) max = p.CurrentMhz;
+                    }
+                    return max;
+                }
+                finally { Marshal.FreeHGlobal(buf); }
+            }
+            catch { return -1; }
+        }
+
+        private static IntPtr EnsureNvmlDev()
         {
             try
             {
@@ -216,9 +278,42 @@ namespace XkScreen.Service
                     IntPtr dev;
                     if (nvmlDeviceGetHandleByIndex_v2(0, out dev) == 0) nvmlDev = dev;
                 }
-                if (nvmlDev == IntPtr.Zero) return -1;
+                return nvmlDev;
+            }
+            catch { return IntPtr.Zero; }
+        }
+
+        /// <summary>Live GPU utilisation / SM clock / temperature from NVML (the
+        /// same source nvidia-smi reads). Returns false when unavailable.</summary>
+        private static bool NvmlGpuMetrics(out double load, out double clockGhz10, out double temp)
+        {
+            load = -1; clockGhz10 = -1; temp = -1;
+            IntPtr dev = EnsureNvmlDev();
+            if (dev == IntPtr.Zero) return false;
+            try
+            {
+                NvmlUtilization u;
+                if (nvmlDeviceGetUtilizationRates(dev, out u) == 0) load = u.Gpu;
+                uint mhz;
+                if (nvmlDeviceGetClockInfo(dev, 1, out mhz) == 0) clockGhz10 = mhz / 100.0; // SM clock
+                uint t;
+                if (nvmlDeviceGetTemperature(dev, 0, out t) == 0) temp = t;
+                return load >= 0 || clockGhz10 >= 0 || temp >= 0;
+            }
+            catch { return false; }
+        }
+
+        private static bool nvmlTried;
+        private static IntPtr nvmlDev = IntPtr.Zero;
+
+        private static double ReadNvmlFanPct()
+        {
+            try
+            {
+                IntPtr dev = EnsureNvmlDev();
+                if (dev == IntPtr.Zero) return -1;
                 uint pct;
-                if (nvmlDeviceGetFanSpeed(nvmlDev, out pct) != 0) { nvmlDev = IntPtr.Zero; return -1; }
+                if (nvmlDeviceGetFanSpeed(dev, out pct) != 0) { nvmlDev = IntPtr.Zero; return -1; }
                 return pct;
             }
             catch { return -1; }
@@ -385,9 +480,24 @@ namespace XkScreen.Service
                 if (d == null) return null;
                 byte[] arr = new byte[8];
                 int clock = 0;
-                if (d.ContainsKey("clock")) clock = (int)ToDbl(d["clock"]);
-                if (d.ContainsKey("load")) arr[0] = (byte)(int)ToDbl(d["load"]);
-                if (d.ContainsKey("temperature")) arr[1] = (byte)(int)ToDbl(d["temperature"]);
+                int load = 0;
+                int temp = 0;
+                double gl, gc, gt;
+                if (NvmlGpuMetrics(out gl, out gc, out gt))
+                {
+                    // live values, same source as nvidia-smi
+                    if (gl >= 0) load = (int)gl;
+                    if (gt >= 0) temp = (int)gt;
+                    if (gc >= 0) clock = (int)Math.Round(gc * 100.0); // back to MHz
+                }
+                else
+                {
+                    if (d.ContainsKey("clock")) clock = (int)ToDbl(d["clock"]);
+                    if (d.ContainsKey("load")) load = (int)ToDbl(d["load"]);
+                    if (d.ContainsKey("temperature")) temp = (int)ToDbl(d["temperature"]);
+                }
+                arr[0] = (byte)load;
+                arr[1] = (byte)temp;
                 arr[2] = (byte)(clock & 0xFF);
                 arr[3] = (byte)((clock >> 8) & 0xFF);
                 return arr;
@@ -404,13 +514,20 @@ namespace XkScreen.Service
                 int size = c != null ? GetSize(c) : 0;
                 if (size <= 0) return null;
                 byte[] arr = new byte[size * 8];
+                // Load and clock come from our native samplers (the SDK's per-core
+                // load/clock freeze without the vendor's RefreshInformation call);
+                // per-core temperatures are still live SDK reads.
+                int load = (int)Math.Round(TotalCpuLoad());
+                if (load < 0) load = 0;
+                if (load > 99) load = 99;
+                double mhz = MaxCoreMhz();
+                int clock = mhz > 0 ? (int)mhz : 0;
+                if (clock > 65535) clock = 65535;
                 for (int k = 0; k < size; k++)
                 {
                     Dictionary<string, object> d = GetItemAt(c, k);
                     if (d == null) continue;
-                    int clock = 0;
-                    if (d.ContainsKey("clock")) clock = (int)ToDbl(d["clock"]);
-                    if (d.ContainsKey("load")) arr[8 * k] = (byte)(int)ToDbl(d["load"]);
+                    arr[8 * k] = (byte)load;
                     if (d.ContainsKey("temperature")) arr[8 * k + 1] = (byte)(int)ToDbl(d["temperature"]);
                     arr[8 * k + 2] = (byte)(clock & 0xFF);
                     arr[8 * k + 3] = (byte)((clock >> 8) & 0xFF);
@@ -473,6 +590,22 @@ namespace XkScreen.Service
                 catch { }
             }
 
+            // Live GPU utilisation / SM clock / temperature from NVML (the source
+            // nvidia-smi reads). The SDK's GPU counters freeze without the vendor's
+            // RefreshInformation call, so NVML is the live source here; on
+            // non-NVIDIA systems the SDK values above remain in place.
+            try
+            {
+                double gl, gc, gt;
+                if (NvmlGpuMetrics(out gl, out gc, out gt))
+                {
+                    if (gl >= 0) s["gpu_load"] = gl;
+                    if (gc >= 0) s["gpu_clock"] = gc;
+                    if (gt >= 0) s["gpu_temp"] = gt;
+                }
+            }
+            catch { }
+
             // ---- CPU (the "packge" item also carries load/temperature/clock) ----
             object c = RunData("Cpu");
             int csize = c != null ? GetSize(c) : 0;
@@ -506,6 +639,20 @@ namespace XkScreen.Service
                 }
                 catch { }
             }
+
+            // Live CPU load / clock from native APIs. The SDK only refreshes its
+            // frequency/load counters inside the vendor's RefreshInformation call
+            // (~100 ms of CPU per call), so those two fields go stale without it -
+            // we source them ourselves instead (GetSystemTimes / CallNtPowerInformation,
+            // the same sources task managers use).
+            try
+            {
+                double tl = TotalCpuLoad();
+                if (tl >= 0) s["cpu_load"] = tl;
+                double mhz = MaxCoreMhz();
+                if (mhz > 0) s["cpu_clock"] = mhz / 100.0;
+            }
+            catch { }
 
             // ---- Network (own high-resolution sampling: adapter byte deltas) ----
             // More accurate and responsive than the SDK's 1s average; the rate is
