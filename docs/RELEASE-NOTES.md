@@ -1,5 +1,16 @@
 # Release Notes
 
+## XkScreen v0.4.0 — Console autostart switch & installer page fix
+
+### Added
+
+- **"开机自启" switch in the console** (screen card): lets the console window start with Windows. It writes the per-user `HKCU\...\Run` value that the installer also manages, so installer and switch can never disagree, and re-installing keeps whatever the switch last set. In a browser (no WebView2 bridge) the row is shown read-only with a hint to use the desktop console. The driver service is unaffected — it always starts at boot from its SYSTEM scheduled task, so the panel keeps its data.
+
+### Fixed
+
+- **Installer "选择附加任务" page: the check boxes lost their left edge.** Inno 6.7 draws the standard tasks page's check boxes about 2 DIP too far left, so at 150 % display scaling their left border was clipped away entirely (visually "the left side is covered"). The two choices now live on a custom page with real check box controls, which the Windows theme draws correctly at any scale — verified by pixel-measuring the rendered page (22×20 px boxes with both borders and rounded corners).
+- The installer's autostart option now writes the same `HKCU\...\Run` value the console's switch manages, instead of a Startup-folder shortcut, and both options remember their previous state when you re-install.
+
 ## XkScreen v0.3.1 — Driver icon
 
 ### Changed

@@ -373,6 +373,81 @@ namespace XkScreen.Gui
             await EnsureWebAsync();
         }
 
+        // ---- console autostart (HKCU Run value, the same one the installer writes) ----
+
+        private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string RunValueName = "XkScreen";
+
+        private static bool GetAutostart()
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey k =
+                    Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKeyPath))
+                    return k != null && k.GetValue(RunValueName) != null;
+            }
+            catch { return false; }
+        }
+
+        private static bool SetAutostart(bool on)
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey k =
+                    Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKeyPath, true))
+                {
+                    if (k == null) return GetAutostart();
+                    if (on)
+                    {
+                        string exe = Environment.ProcessPath;
+                        if (string.IsNullOrEmpty(exe)) return GetAutostart();
+                        k.SetValue(RunValueName, "\"" + exe + "\"");
+                    }
+                    else
+                    {
+                        k.DeleteValue(RunValueName, false);
+                    }
+                }
+            }
+            catch { }
+            return GetAutostart();
+        }
+
+        private void SendAutostart()
+        {
+            try
+            {
+                Web.CoreWebView2.PostWebMessageAsJson(
+                    "{\"type\":\"autostart\",\"value\":"
+                    + (GetAutostart() ? "true" : "false") + "}");
+            }
+            catch { }
+        }
+
+        private void OnWebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
+        {
+            try
+            {
+                using (JsonDocument doc = JsonDocument.Parse(e.WebMessageAsJson))
+                {
+                    JsonElement root = doc.RootElement;
+                    string cmd = root.TryGetProperty("cmd", out JsonElement c) ? c.GetString() : null;
+                    if (cmd == "autostart.get")
+                    {
+                        SendAutostart();
+                    }
+                    else if (cmd == "autostart.set")
+                    {
+                        bool on = root.TryGetProperty("value", out JsonElement v)
+                                  && v.ValueKind == JsonValueKind.True;
+                        SetAutostart(on);
+                        SendAutostart();
+                    }
+                }
+            }
+            catch { }
+        }
+
         /// <summary>Create the WebView2 and navigate to the console. Called on
         /// startup and again whenever the window is shown after a tray hide.</summary>
         private async Task EnsureWebAsync()
@@ -393,6 +468,11 @@ namespace XkScreen.Gui
                 CoreWebView2Environment env = await CoreWebView2Environment.CreateAsync(
                     null, null, new CoreWebView2EnvironmentOptions(flags));
                 await Web.EnsureCoreWebView2Async(env);
+
+                // The page cannot touch the registry itself, so the console's
+                // "start with Windows" switch is served over the WebView2 message
+                // bridge (only present in the desktop console, not in a browser).
+                Web.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
 
                 // Primary source: the copy hosted by the driver service (same one any
                 // browser sees at http://127.0.0.1:8899/). Fall back to the embedded

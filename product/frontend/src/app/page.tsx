@@ -6,6 +6,21 @@ import { createPortal } from "react-dom";
 
 const API = "http://127.0.0.1:8899";
 
+// The desktop console injects this WebView2 bridge; a plain browser does not
+// have it, and the "start with Windows" switch is then read-only there.
+type WebViewBridge = {
+  postMessage: (msg: unknown) => void;
+  addEventListener: (type: "message", cb: (ev: MessageEvent) => void) => void;
+  removeEventListener: (type: "message", cb: (ev: MessageEvent) => void) => void;
+};
+
+function webviewBridge(): WebViewBridge | null {
+  if (typeof window === "undefined") return null;
+  const wv = (window as unknown as { chrome?: { webview?: WebViewBridge } }).chrome
+    ?.webview;
+  return wv && typeof wv.postMessage === "function" ? wv : null;
+}
+
 type Lang = "zh" | "en";
 
 type Config = {
@@ -160,6 +175,11 @@ const UI = {
     schedDisable: "停用",
     schedOffLabel: "关闭时间",
     schedOnLabel: "开启时间",
+    autostartLabel: "开机自启",
+    autostartOn: "跟随启动",
+    autostartOff: "不启动",
+    autostartHint: "仅控制台窗口；驱动服务始终随开机启动（保证小屏有数据）",
+    autostartHintWeb: "此开关只能在桌面控制台窗口中修改",
     modeSplit: "分格定制",
     splitLeft: "左两位",
     splitRight: "右两位",
@@ -242,6 +262,11 @@ const UI = {
     schedDisable: "Disable",
     schedOffLabel: "Off at",
     schedOnLabel: "On at",
+    autostartLabel: "Start with Windows",
+    autostartOn: "Launch",
+    autostartOff: "Don't launch",
+    autostartHint: "Console window only — the driver always starts at boot so the panel keeps its data.",
+    autostartHintWeb: "Change this in the desktop console window.",
     modeSplit: "Custom split",
     splitLeft: "Left 2 digits",
     splitRight: "Right 2 digits",
@@ -712,6 +737,8 @@ export default function Home() {
   const [connected, setConnected] = useState(false);
   const [sensorsActive, setSensorsActive] = useState(true);
   const [fxPlaying, setFxPlaying] = useState<string | null>(null);
+  // null = unknown / not available (browser without the WebView2 bridge)
+  const [autostart, setAutostart] = useState<boolean | null>(null);
   const [msg, setMsg] = useState<{ k: MsgKey; d?: string }>({ k: "connecting" });
 
   // clock input fields (kept locally, applied on change)
@@ -840,6 +867,28 @@ export default function Home() {
     const tmr = setInterval(poll, 500);
     return () => clearInterval(tmr);
   }, [poll]);
+
+  // "Start with Windows" is a per-user registry setting, so only the desktop
+  // console (which runs as the user) can read and change it — over its WebView2
+  // bridge. In a plain browser the switch is shown read-only.
+  useEffect(() => {
+    const wv = webviewBridge();
+    if (!wv) return;
+    const onMsg = (ev: MessageEvent) => {
+      const d = ev.data as { type?: string; value?: boolean } | null;
+      if (d && d.type === "autostart") setAutostart(!!d.value);
+    };
+    wv.addEventListener("message", onMsg);
+    wv.postMessage({ cmd: "autostart.get" });
+    return () => wv.removeEventListener("message", onMsg);
+  }, []);
+
+  const changeAutostart = useCallback((on: boolean) => {
+    const wv = webviewBridge();
+    if (!wv) return;
+    setAutostart(on); // optimistic; the console answers with what it stored
+    wv.postMessage({ cmd: "autostart.set", value: on });
+  }, []);
 
   const applyConfig = useCallback(async (cfg: Config) => {
     try {
@@ -1295,6 +1344,24 @@ export default function Home() {
                       onChange={(e) => setConfig((c) => ({ ...c, schOn: e.target.value || "07:00" }))}
                     />
                   </label>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="w-14 text-sm text-slate-300">{t("autostartLabel")}</span>
+                {autostart === null ? (
+                  <span className="text-xs text-slate-500">{t("autostartHintWeb")}</span>
+                ) : (
+                  <>
+                    <Segmented<"on" | "off">
+                      value={autostart ? "on" : "off"}
+                      options={[
+                        { v: "on", label: t("autostartOn") },
+                        { v: "off", label: t("autostartOff") },
+                      ]}
+                      onChange={(v) => changeAutostart(v === "on")}
+                    />
+                    <span className="text-xs text-slate-500">{t("autostartHint")}</span>
+                  </>
                 )}
               </div>
             </div>

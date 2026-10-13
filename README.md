@@ -75,7 +75,7 @@ Point XkScreen at the installed vendor folder with `--official-dir <path>`, the 
 7. **Animations**: pick a persistent effect (pipeline / marquee / digital rain / wave / counter / glitch) with target and speed; one-shots include the **Steins;Gate divergence-meter scramble**, boot scan and glitch burst — plus auto-triggers on screen-on or when a countdown hits 00:00.
 8. **Refresh rate** (the card at the very bottom): 300 ms – 2000 ms; slower is lighter (the whole driver idles at ~0.03 % CPU, so you normally never touch it).
 9. **Tray**: closing the window tucks it into the tray — hover for live CPU/GPU/RAM, right-click for screen on/off, open-in-browser, close-to-tray vs exit. Tray-resident it costs only a few MB.
-10. **Autostart & self-healing**: registered at install time (SYSTEM scheduled task); if the service ever dies, the hourly watchdog brings it back.
+10. **Autostart & self-healing**: the driver service starts at boot from the SYSTEM scheduled task the installer registers (so the panel always has data, nothing to launch by hand); whether the **console window** follows you at logon is a switch in the screen card (“Start with Windows”). If the service ever dies, the hourly watchdog brings it back.
 11. **Automation** (optional): the driver exposes a local JSON API — `GET /status`, `POST /config`, `POST /effect`, `GET /perf` (see “Local API” below).
 12. **Troubleshooting**: screen dark/stuck → the driver is not running (run `C:\XkScreen\service_host.cmd` as administrator); console says “sensors inactive” → it was started without administrator rights (restart it the same way); to go back to the original software, uninstall XkScreen — the uninstaller restores the original service to auto-start.
 

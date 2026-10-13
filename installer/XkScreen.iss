@@ -12,7 +12,7 @@
 ;  配置保留: C:\ProgramData\XkScreen\config.json 不随卸载删除
 ; ============================================================================
 
-#define Version "0.3.1"
+#define Version "0.4.0"
 
 #ifdef EmbedVendor
   #define OutSuffix "-with-vendor"
@@ -81,9 +81,14 @@ ButtonOK=确定
 ExitSetupTitle=退出安装
 ExitSetupMessage=安装尚未完成，确定要退出吗？
 
-[Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: checkedonce
-Name: "startupicon"; Description: "开机时自动启动控制台"; GroupDescription: "附加任务："; Flags: unchecked
+; The two "additional tasks" live on a custom page (see [Code]) instead of the
+; standard tasks page: Inno 6.7 draws that page's check boxes ~2 DIP too far
+; left, so at 150% scaling their left edge is clipped away.
+
+[Registry]
+; Autostart of the console — the same HKCU Run value the console's own
+; "开机自启" switch manages, so installer and app stay in sync.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "XkScreen"; ValueData: """{app}\gui\XkScreen.Gui.exe"""; Flags: uninsdeletevalue; Check: WantAutostart
 
 [Files]
 Source: "..\product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -115,8 +120,7 @@ Source: "{#VendorDir}\System.Net.Http.dll"; DestDir: "{app}\vendor"; Flags: igno
 Name: "{group}\XkScreen 控制台"; Filename: "{app}\gui\XkScreen.Gui.exe"
 Name: "{group}\网页控制台"; Filename: "http://127.0.0.1:8899/"
 Name: "{group}\卸载 XkScreen"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\XkScreen 控制台"; Filename: "{app}\gui\XkScreen.Gui.exe"; Tasks: desktopicon
-Name: "{commonstartup}\XkScreen 控制台"; Filename: "{app}\gui\XkScreen.Gui.exe"; Tasks: startupicon
+Name: "{autodesktop}\XkScreen 控制台"; Filename: "{app}\gui\XkScreen.Gui.exe"; Check: WantDesktopIcon
 
 [Run]
 Filename: "{app}\gui\XkScreen.Gui.exe"; Description: "立即启动 XkScreen 控制台"; Flags: postinstall nowait skipifsilent runasoriginaluser
@@ -143,6 +147,68 @@ const
 
 var
   VendorDirFound: string;
+  CbDesktop, CbStartup: TNewCheckBox;
+
+function ReadAutostart: Boolean;
+var
+  V: String;
+begin
+  Result := RegQueryStringValue(HKCU,
+    'Software\Microsoft\Windows\CurrentVersion\Run', 'XkScreen', V);
+end;
+
+{ The "additional tasks" page. The standard tasks page cannot be used here: its
+  check boxes are drawn ~2 DIP too far left and get clipped at non-100% DPI, so
+  the left border of every box disappears. Real check box controls are drawn by
+  the Windows theme and are unaffected. }
+procedure InitializeWizard;
+var
+  Page: TWizardPage;
+  Lbl: TNewStaticText;
+begin
+  Page := CreateCustomPage(wpSelectTasks, '选择附加任务', '需要执行哪些附加任务？');
+
+  Lbl := TNewStaticText.Create(Page);
+  Lbl.Parent := Page.Surface;
+  Lbl.Left := 0;
+  Lbl.Top := 0;
+  Lbl.Width := Page.SurfaceWidth;
+  Lbl.Height := ScaleY(30);
+  Lbl.AutoSize := False;
+  Lbl.WordWrap := True;
+  Lbl.Caption := '请选择安装 XkScreen 时要执行的附加任务，然后点击"下一步"。';
+
+  CbDesktop := TNewCheckBox.Create(Page);
+  CbDesktop.Parent := Page.Surface;
+  CbDesktop.Caption := '创建桌面快捷方式';
+  CbDesktop.Left := 0;
+  CbDesktop.Top := ScaleY(36);
+  CbDesktop.Width := Page.SurfaceWidth;
+  CbDesktop.Height := ScaleY(24);
+  { Keep a previous choice (e.g. a desktop icon the user deleted on purpose). }
+  CbDesktop.Checked := not FileExists(
+    ExpandConstant('{autodesktop}\XkScreen 控制台.lnk'));
+
+  CbStartup := TNewCheckBox.Create(Page);
+  CbStartup.Parent := Page.Surface;
+  CbStartup.Caption := '开机时自动启动控制台';
+  CbStartup.Left := 0;
+  CbStartup.Top := ScaleY(66);
+  CbStartup.Width := Page.SurfaceWidth;
+  CbStartup.Height := ScaleY(24);
+  { Mirror the console's own switch, so a re-install never silently flips it. }
+  CbStartup.Checked := ReadAutostart;
+end;
+
+function WantDesktopIcon: Boolean;
+begin
+  Result := (CbDesktop <> nil) and CbDesktop.Checked;
+end;
+
+function WantAutostart: Boolean;
+begin
+  Result := (CbStartup <> nil) and CbStartup.Checked;
+end;
 
 function AddBS(const S: string): string;
 begin

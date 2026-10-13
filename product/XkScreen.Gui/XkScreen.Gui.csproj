@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -9,7 +9,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>XkScreen.Gui</AssemblyName>
     <RootNamespace>XkScreen.Gui</RootNamespace>
-    <Version>0.3.1</Version>
+    <Version>0.4.0</Version>
     <ApplicationIcon>appicon.ico</ApplicationIcon>
   </PropertyGroup>
 
