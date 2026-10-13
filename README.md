@@ -155,6 +155,8 @@ Everything lives in `C:\ProgramData\XkScreen\config.json` (hot-reloaded; edits a
 
 The panel can only change digit *values* (colors and brightness are firmware-fixed), so every effect is a scripted value sequence over the six display cells — rings CPU top/bottom, GPU top/bottom, and the clock's two 2-digit groups. Effects run at `effect_speed_ms` (60-1000 ms) and always layer on top of the real data.
 
+![Animations running (console)](docs/images/effects.png)
+
 | `effect` | Effect |
 |---|---|
 | `off` | no animation (default) |
@@ -222,7 +224,7 @@ Developed with the assistance of the **ZCode** coding agent.
 
 ## ⚖️ Disclaimer
 
-Unofficial community tool for interoperability and educational purposes. Not affiliated with, endorsed by, or connected to Xingcan or any screen vendor. No vendor binaries are distributed in this repository; all protocol knowledge was obtained by reverse engineering the locally installed software for interoperability. Use at your own risk.
+Unofficial community tool for interoperability and educational purposes. Not affiliated with, endorsed by, or connected to aigo (爱国者) or any screen vendor. No vendor binaries are distributed in this repository; all protocol knowledge was obtained by reverse engineering the locally installed software for interoperability. Use at your own risk.
 
 ## 📄 License
 

@@ -792,6 +792,10 @@ export default function Home() {
       }
       if (!initialLoaded.current && j.config) {
         initialLoaded.current = true;
+        // Adopting the server's config must not bounce back as a save: fields
+        // this UI does not model would be written with local defaults, which
+        // silently wipes them (e.g. the running animation).
+        skipNextApply.current = true;
         const tt: string = j.config.time || "auto";
         const sch = j.config.schedule;
         const msp = tt.match(/^split:([^,]+),(.+)$/);
@@ -806,8 +810,8 @@ export default function Home() {
           schOn: sch && sch.on ? String(sch.on) : "07:00",
           splitL: msp ? msp[1].trim() : "cpu_temp",
           splitR: msp ? msp[2].trim() : "mem_pct",
-          effect: j.config.effect || "off",
-          effTarget: j.config.effect_target || "all",
+          effect: j.config.effect || j.effect || "off",
+          effTarget: j.config.effect_target || j.effect_target || "all",
           effSpeed: String(j.config.effect_speed_ms || 120),
           effOnScreenOn: j.config.effect_on_screen_on || "none",
           effOnTimerEnd: j.config.effect_on_timer_end || "none",

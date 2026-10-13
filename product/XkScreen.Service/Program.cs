@@ -709,6 +709,11 @@ namespace XkScreen.Service
                     cfgDict["time"] = cfg.Time;
                     cfgDict["interval_ms"] = cfg.IntervalMs;
                     cfgDict["screen"] = cfg.Screen;
+                    cfgDict["effect"] = cfg.Effect;
+                    cfgDict["effect_target"] = cfg.EffectTarget;
+                    cfgDict["effect_speed_ms"] = cfg.EffectSpeedMs;
+                    cfgDict["effect_on_screen_on"] = cfg.EffectOnScreenOn;
+                    cfgDict["effect_on_timer_end"] = cfg.EffectOnTimerEnd;
                     if (!string.IsNullOrEmpty(cfg.ScheduleOff) && !string.IsNullOrEmpty(cfg.ScheduleOn))
                     {
                         Dictionary<string, object> sd = new Dictionary<string, object>();

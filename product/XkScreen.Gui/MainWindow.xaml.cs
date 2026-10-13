@@ -120,7 +120,7 @@ namespace XkScreen.Gui
             try { ver = " v" + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3); }
             catch { }
             WinForms.MessageBox.Show(
-                "XkScreen 星灿屏幕控制台" + ver + "\n\n"
+                "XkScreen 星璨屏幕控制台" + ver + "\n\n"
                 + "适用于：爱国者星璨小岚机箱小屏（Xingcan Xiaolan / XK003）\n"
                 + "用途：把小屏的 CPU/GPU 圆环与时钟区变成任意数据的显示面板，\n"
                 + "并提供动画效果、开关屏与定时、网页控制台等能力。\n\n"

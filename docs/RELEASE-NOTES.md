@@ -1,5 +1,16 @@
 # Release Notes
 
+## XkScreen v0.2.9 — Console state restore & fresh screenshots
+
+### Fixed
+
+- **Opening the console no longer switches your animation off.** The page adopted its initial state from a `/status` payload whose `config` block omitted the `effect*` fields, so the UI fell back to its local defaults (`off` / `120 ms` / `none`) and the 400 ms auto-apply wrote those defaults straight back to `config.json` — silently killing a running effect (and resetting its speed and auto-triggers) every time the console was opened. `/status` now returns the full effect block, and the console skips its write-back when it adopts the server's state, so loading the UI can never clobber server-side values. The frontend also falls back to the top-level `effect` fields, which keeps it correct against older drivers.
+
+### Docs
+
+- Refreshed both console screenshots (`docs/images/screenshot.png`, `docs/images/effects.png`) — they are now real captures of the desktop console window itself, one idle and one with the pipeline animation running.
+- Branding consistency: the installer and the About dialog now spell the chassis line 星璨 (they had 星灿), and the disclaimer names 爱国者（aigo）instead of a misspelled vendor.
+
 ## XkScreen v0.2.8 — Live voltage & portability
 
 ### Changed

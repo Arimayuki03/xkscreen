@@ -164,6 +164,8 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
 
 屏幕只能改数字值（颜色与亮度由固件固定），所以所有效果都是「按节奏改写数字」的序列，作用于六个显示格：CPU 圆环上/下、GPU 圆环上/下、时钟区左右两组 2 位数字。效果按 `effect_speed_ms`（60-1000 毫秒）刷新，且始终叠加在真实数据之上。
 
+![动画效果运行中（控制台）](docs/images/effects.png)
+
 | `effect` | 效果 |
 |---|---|
 | `off` | 关闭（默认） |
@@ -231,7 +233,7 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
 
 ## ⚖️ 免责声明
 
-本工具为互通性与学习目的的非官方社区项目，与星灿及任何屏幕厂商无关、未获其背书。仓库不包含任何厂商二进制文件；所有协议知识均来自对本地已安装软件为互通目的的逆向分析。使用风险自负。
+本工具为互通性与学习目的的非官方社区项目，与爱国者（aigo）及任何屏幕厂商无关、未获其背书。仓库不包含任何厂商二进制文件；所有协议知识均来自对本地已安装软件为互通目的的逆向分析。使用风险自负。
 
 ## 📄 许可证
 

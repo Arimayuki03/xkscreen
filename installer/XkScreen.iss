@@ -1,5 +1,5 @@
 ﻿; ============================================================================
-;  XkScreen 星灿屏幕控制 - 一键安装包 (Inno Setup 6)
+;  XkScreen 星璨屏幕控制 - 一键安装包 (Inno Setup 6)
 ;
 ;  公开发布版（安装包内不含厂商组件，安装时从已装的原版软件复制）：
 ;     iscc installer\XkScreen.iss
@@ -12,7 +12,7 @@
 ;  配置保留: C:\ProgramData\XkScreen\config.json 不随卸载删除
 ; ============================================================================
 
-#define Version "0.2.8"
+#define Version "0.2.9"
 
 #ifdef EmbedVendor
   #define OutSuffix "-with-vendor"
@@ -22,7 +22,7 @@
 
 [Setup]
 AppId={{7A3C5E10-9B4F-4C2A-9E6D-1F2A3B4C5D6E}
-AppName=XkScreen 星灿屏幕控制
+AppName=XkScreen 星璨屏幕控制
 AppVersion={#Version}
 AppVerName=XkScreen {#Version}
 AppPublisher=Arimayuki03
@@ -33,7 +33,7 @@ DefaultGroupName=XkScreen
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\gui\XkScreen.Gui.exe
-UninstallDisplayName=XkScreen 星灿屏幕控制
+UninstallDisplayName=XkScreen 星璨屏幕控制
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -50,9 +50,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
 SetupAppTitle=XkScreen 安装程序
-SetupWindowTitle=XkScreen 星灿屏幕控制 - 安装
+SetupWindowTitle=XkScreen 星璨屏幕控制 - 安装
 WelcomeLabel1=欢迎安装 XkScreen
-WelcomeLabel2=即将在你的电脑上安装 XkScreen 星灿屏幕控制（屏幕驱动 + 可视化控制台）。%n%n安装程序将会：%n  · 部署驱动服务与网页控制台%n  · 从已安装的原版 SystemTemperatureMonitoring 复制必要组件%n  · 注册开机自启（计划任务）并立即点亮屏幕%n%n点击"下一步"继续。
+WelcomeLabel2=即将在你的电脑上安装 XkScreen 星璨屏幕控制（屏幕驱动 + 可视化控制台）。%n%n安装程序将会：%n  · 部署驱动服务与网页控制台%n  · 从已安装的原版 SystemTemperatureMonitoring 复制必要组件%n  · 注册开机自启（计划任务）并立即点亮屏幕%n%n点击"下一步"继续。
 WizardSelectDir=选择安装位置
 SelectDirDesc=要把 XkScreen 安装到哪里？
 SelectDirLabel3=安装程序将把 XkScreen 安装到以下文件夹。
@@ -214,7 +214,7 @@ begin
   VendorDirFound := FindVendorDir;
   if VendorDirFound = '' then
   begin
-    if MsgBox('未找到原版 SystemTemperatureMonitoring（星灿屏幕工具）的安装目录。' + #13#10 +
+    if MsgBox('未找到原版 SystemTemperatureMonitoring（星璨屏幕工具）的安装目录。' + #13#10 +
               'XkScreen 需要复用它的屏幕通信与传感器组件。' + #13#10 + #13#10 +
               '建议先安装原版软件，然后重新运行本安装包。' + #13#10 +
               '现在仍然继续安装吗？（屏幕在补装原版前将无法工作）',
