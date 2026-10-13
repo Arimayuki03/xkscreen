@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **Upgrading no longer leaves two drivers fighting over the panel.** Installing over a machine where the previous driver was still running started a second service instance (the old one keeps 127.0.0.1:8899 and the USB device, and the new one used to log the bind failure and keep driving the screen anyway — two writers, one panel). The driver now treats the API port as its ownership token and exits instead of touching the device when it is already served, and the installer stops the previous service and console before replacing files.
 - **Opening the console no longer switches your animation off.** The page adopted its initial state from a `/status` payload whose `config` block omitted the `effect*` fields, so the UI fell back to its local defaults (`off` / `120 ms` / `none`) and the 400 ms auto-apply wrote those defaults straight back to `config.json` — silently killing a running effect (and resetting its speed and auto-triggers) every time the console was opened. `/status` now returns the full effect block, and the console skips its write-back when it adopts the server's state, so loading the UI can never clobber server-side values. The frontend also falls back to the top-level `effect` fields, which keeps it correct against older drivers.
 
 ### Docs

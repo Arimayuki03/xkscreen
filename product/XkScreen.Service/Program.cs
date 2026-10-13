@@ -68,6 +68,14 @@ namespace XkScreen.Service
         {
             Log.Init();
             Log.Write("XkScreen.Service start (M1 prototype)");
+            // Single-instance guard: the HTTP port is the ownership token for the
+            // panel. An upgrade install (or a stray second start) must not let a
+            // second process drive the same USB device while this one does.
+            if (PortServed())
+            {
+                Log.Write("127.0.0.1:8899 already served - another driver owns the panel; exit 1");
+                return 1;
+            }
             try
             {
                 bool dirExplicit = false;
@@ -649,6 +657,25 @@ namespace XkScreen.Service
                 return nowM >= offM || nowM < onM;
             }
             return false;
+        }
+
+        // ---- single-instance guard ----
+        // True when something already answers on our API port. A bare TCP probe is
+        // used on purpose: HttpListener's own failure codes cannot distinguish
+        // "port taken" from "URL ACL missing", and the latter must keep working.
+        private static bool PortServed()
+        {
+            try
+            {
+                using (System.Net.Sockets.TcpClient c = new System.Net.Sockets.TcpClient())
+                {
+                    IAsyncResult ar = c.BeginConnect("127.0.0.1", 8899, null, null);
+                    if (!ar.AsyncWaitHandle.WaitOne(400)) return false;
+                    c.EndConnect(ar);
+                    return true;
+                }
+            }
+            catch { return false; }
         }
 
         // ---- local HTTP API (for the GUI): 127.0.0.1:8899 ----

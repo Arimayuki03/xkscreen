@@ -299,8 +299,22 @@ begin
     MsgBox('注册计划任务失败：无法运行 setup_tasks.cmd。', mbError, MB_OK);
 end;
 
+procedure StopRunningDriver;
+var
+  R: Integer;
+begin
+  { An upgrade installs over a machine where the previous driver is still
+    running: it holds 127.0.0.1:8899 and the USB panel, so starting the freshly
+    registered task would create a second instance fighting it for the device.
+    Stop both processes before Setup replaces the files. }
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM XkScreen.Service.exe /F', '', SW_HIDE, ewWaitUntilTerminated, R);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM XkScreen.Gui.exe /F', '', SW_HIDE, ewWaitUntilTerminated, R);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
+  if CurStep = ssInstall then
+    StopRunningDriver;
   if CurStep = ssPostInstall then
   begin
 #ifndef EmbedVendor
