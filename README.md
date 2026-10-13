@@ -135,6 +135,8 @@ Everything lives in `C:\ProgramData\XkScreen\config.json` (hot-reloaded; edits a
 | `hdd_load` | disk activity % | as-is |
 | a number, e.g. `50` | fixed value | literal |
 
+**Sources & portability**: CPU usage = the OS `GetSystemTimes` metric (what monitoring tools show); CPU clock = nominal × the OS `% Processor Performance` counter (the same computation Task Manager's “Speed” uses); CPU voltage = the **per-core VID sensors** (CPU-Z’s source; the maximum across cores — falls back to the measured motherboard `VCORE`, then to the vendor default); GPU utilisation/clock/temperature/fan = NVIDIA NVML (identical to nvidia-smi; on **non-NVIDIA systems it falls back to the vendor SDK and refreshes its counters every 10 s**); CPU/GPU temperature, power, RAM and fan RPM = live vendor-SDK reads; disk activity = the OS PDH counter (WMI fallback); network rates = our own adapter-counter sampling. Every value has a fallback chain, so another CPU/GPU/motherboard keeps reading — at worst with the vendor SDK’s own figures.
+
 ### Clock modes
 
 | Value | Meaning |

@@ -1,5 +1,18 @@
 # Release Notes
 
+## XkScreen v0.2.8 — Live voltage & portability
+
+### Changed
+
+- **CPU voltage** now reports the **live per-core VID** (the requested voltage, the same value CPU-Z shows; the maximum across P-cores/E-cores) instead of the constant `VID (max)` spec value. Measured on the target machine: 1.13–1.21 V, moving with load. Fallback chain: per-core VID → measured motherboard `VCORE` rail → the vendor SDK's own value.
+- **Portability hedges**, so other platforms keep reading correctly:
+  - on **non-NVIDIA GPUs** the driver refreshes the vendor SDK's counters every 10 s (they drive the GPU load/clock there, and would otherwise be frozen without NVML);
+  - every value now has a documented fallback chain (CPU load → OS metric, CPU clock → OS perf counter → nominal, disk → PDH → WMI, GPU → NVML → SDK, voltage → per-core VID → VCORE → SDK) — see the README's “Sources & portability” note.
+
+### Notes
+
+- The panel renders the clock’s **hour** without a leading zero (a value below 10 lights only one digit) — that is the firmware’s clock rendering, not the data: the frame XkScreen sends carries the exact value and the console preview shows `07:21`.
+
 ## XkScreen v0.2.7 — Clock, voltage and console fixes
 
 ### Fixed

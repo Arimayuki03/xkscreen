@@ -152,6 +152,24 @@ namespace XkScreen.Service
                 }
                 catch { }
             }
+            // Compatibility hedge for non-NVIDIA GPUs: there the GPU load/clock come
+            // from the SDK, whose counters only refresh inside the vendor's
+            // RefreshInformation call. Run it at a low rate (10 s, ~1 % CPU) so
+            // those systems still show usable GPU values.
+            try
+            {
+                if (EnsureNvmlDev() == IntPtr.Zero && (DateTime.Now - lastSdkRefresh).TotalSeconds >= 10)
+                {
+                    lastSdkRefresh = DateTime.Now;
+                    object pSdk = GetPSdk();
+                    if (pSdk != null)
+                    {
+                        MethodInfo miRef = pSdk.GetType().GetMethod("RefreshInformation");
+                        if (miRef != null) miRef.Invoke(pSdk, null);
+                    }
+                }
+            }
+            catch { }
             return any;
         }
 
@@ -358,14 +376,47 @@ namespace XkScreen.Service
             catch { return -1; }
         }
 
-        /// <summary>Live Vcore in volts. The vendor's own CPU getter reports
-        /// "VID (max)" - a static spec value - so we read the live VCORE sensor
-        /// (class 4096, motherboard SIO through the vendor driver) ourselves. The
-        /// sensor index is resolved once and re-resolved on failure.</summary>
+        /// <summary>Live CPU voltage in volts, sourced in this order:
+        ///   1) the per-core VID sensors ("P-Core #n" / "E-Core #n" / "CPU #n",
+        ///      class 4096) - the requested voltage CPU-Z-style, which moves with
+        ///      load; the maximum across cores is reported;
+        ///   2) the measured "VCORE" rail (motherboard SIO);
+        ///   3) give up and keep the vendor SDK's own value (its static
+        ///      "VID (max)" spec - still better than nothing on exotic boards).
+        /// The vendor's own getter only ever reports "VID (max)", a constant spec.
+        /// Sensor indexes are resolved once and re-resolved if a read fails.</summary>
+        private static readonly List<int[]> vidSensors = new List<int[]>(); // {device, index}
         private static int vcoreDev = -1;
         private static int vcoreIdx = -1;
+        private static bool vcoreTried;
 
-        private static double ReadVcore()
+        private static void ResolveVoltageSensors(object pSdk, MethodInfo miNum, MethodInfo miInfo)
+        {
+            Type t = pSdk.GetType();
+            MethodInfo miNumDev = t.GetMethod("GetNumberOfDevices");
+            if (miNumDev == null) return;
+            int nd = Convert.ToInt32(miNumDev.Invoke(pSdk, null));
+            for (int d = 0; d < nd; d++)
+            {
+                int ns = Convert.ToInt32(miNum.Invoke(pSdk, new object[] { d, 4096 }));
+                for (int j = 0; j < ns; j++)
+                {
+                    object[] args = new object[] { d, j, 4096, 0, "", 0, 0f, 0f, 0f };
+                    if (!(bool)miInfo.Invoke(pSdk, args)) continue;
+                    string nm = Convert.ToString(args[4]).Trim();
+                    if (nm.StartsWith("P-Core") || nm.StartsWith("E-Core") || nm.StartsWith("CPU #"))
+                        vidSensors.Add(new int[] { d, j });
+                    else if (string.Equals(nm, "VCORE", StringComparison.OrdinalIgnoreCase) ||
+                             nm.IndexOf("vcore", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        vcoreDev = d;
+                        vcoreIdx = j;
+                    }
+                }
+            }
+        }
+
+        private static double ReadLiveVoltage()
         {
             try
             {
@@ -375,33 +426,36 @@ namespace XkScreen.Service
                 MethodInfo miNum = t.GetMethod("GetNumberOfSensors");
                 MethodInfo miInfo = t.GetMethod("GetSensorInfos");
                 if (miNum == null || miInfo == null) return -1;
-                if (vcoreIdx < 0)
+                if (!vcoreTried)
                 {
-                    MethodInfo miNumDev = t.GetMethod("GetNumberOfDevices");
-                    if (miNumDev == null) return -1;
-                    int nd = Convert.ToInt32(miNumDev.Invoke(pSdk, null));
-                    for (int d = 0; d < nd && vcoreIdx < 0; d++)
-                    {
-                        int ns = Convert.ToInt32(miNum.Invoke(pSdk, new object[] { d, 4096 }));
-                        for (int j = 0; j < ns; j++)
-                        {
-                            object[] args = new object[] { d, j, 4096, 0, "", 0, 0f, 0f, 0f };
-                            if (!(bool)miInfo.Invoke(pSdk, args)) continue;
-                            string nm = Convert.ToString(args[4]).Trim();
-                            if (string.Equals(nm, "VCORE", StringComparison.OrdinalIgnoreCase))
-                            {
-                                vcoreDev = d;
-                                vcoreIdx = j;
-                                break;
-                            }
-                        }
-                    }
+                    vcoreTried = true;
+                    try { ResolveVoltageSensors(pSdk, miNum, miInfo); } catch { }
                 }
-                if (vcoreIdx < 0) return -1;
-                object[] a = new object[] { vcoreDev, vcoreIdx, 4096, 0, "", 0, 0f, 0f, 0f };
-                if (!(bool)miInfo.Invoke(pSdk, a)) { vcoreIdx = -1; return -1; }
-                double v = Convert.ToDouble(a[6]);
-                return (v > 0.2 && v < 3.0) ? v : -1; // sanity: Vcore is well under 3 V
+                double best = -1;
+                for (int k = 0; k < vidSensors.Count; k++)
+                {
+                    int[] si = vidSensors[k];
+                    object[] a = new object[] { si[0], si[1], 4096, 0, "", 0, 0f, 0f, 0f };
+                    try
+                    {
+                        if (!(bool)miInfo.Invoke(pSdk, a)) continue;
+                        double v = Convert.ToDouble(a[6]);
+                        if (v > 0.2 && v < 3.0 && v > best) best = v;
+                    }
+                    catch { }
+                }
+                if (best > 0) return best;
+                if (vcoreIdx >= 0)
+                {
+                    object[] a = new object[] { vcoreDev, vcoreIdx, 4096, 0, "", 0, 0f, 0f, 0f };
+                    if ((bool)miInfo.Invoke(pSdk, a))
+                    {
+                        double v = Convert.ToDouble(a[6]);
+                        if (v > 0.2 && v < 3.0) return v;
+                    }
+                    vcoreIdx = -1; // re-resolve next time
+                }
+                return -1;
             }
             catch { return -1; }
         }
@@ -444,6 +498,7 @@ namespace XkScreen.Service
 
         private static bool nvmlTried;
         private static IntPtr nvmlDev = IntPtr.Zero;
+        private static DateTime lastSdkRefresh = DateTime.MinValue;
 
         private static double ReadNvmlFanPct()
         {
@@ -792,7 +847,7 @@ namespace XkScreen.Service
                 double mhz = EffectiveCpuMhz();
                 if (mhz <= 0) mhz = MaxCoreMhz(); // fallback: nominal clock
                 if (mhz > 0) s["cpu_clock"] = mhz / 100.0;
-                double vc = ReadVcore();           // live Vcore (the SDK's own field is static)
+                double vc = ReadLiveVoltage();      // live per-core VID / VCORE (SDK's own field is static)
                 if (vc > 0) s["cpu_volt"] = vc * 10.0;
             }
             catch { }

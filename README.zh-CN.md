@@ -144,6 +144,8 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
 | `hdd_load` | 硬盘活动 % | 原值 |
 | 数字，如 `50` | 固定值 | 原样显示 |
 
+**数据来源与跨平台兼容**：CPU 占用 = 系统 `GetSystemTimes`（标准口径，与监控工具一致）；CPU 频率 = 标称频率 × 系统 `% Processor Performance`（与任务管理器"速度"同算法）；CPU 电压 = **每核 VID 传感器**（CPU-Z 同源、取各核最大值；无 VID 时回退主板 `VCORE` 实测值，再回退厂商默认值）；GPU 利用率/频率/温度/风扇 = NVIDIA NVML（与 nvidia-smi 一致；**非 NVIDIA 平台自动回退厂商 SDK，并每 10 秒刷新其计数器**）；CPU/GPU 温度、功耗、内存、风扇转速 = 厂商 SDK 实时读取；硬盘活动 = 系统 PDH 计数器（不可用时回退 WMI）；网速 = 自带网卡计数器采样。每一项都有回退链，换平台/换显卡/换主板时不会"读不到数据"，最坏情况是回退到厂商 SDK 的口径。
+
 ### 时钟模式
 
 | 取值 | 含义 |
