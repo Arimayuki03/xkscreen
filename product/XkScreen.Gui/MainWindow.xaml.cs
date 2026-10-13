@@ -290,6 +290,16 @@ namespace XkScreen.Gui
             tipTimer.Start();
             await UpdateStatusAsync();
 
+            // While the window lives in the tray, trim the working set periodically:
+            // the runtime pages its used pages back in over time, and without a trim
+            // the tray footprint creeps from ~7 MB towards ~20 MB.
+            DispatcherTimer trimTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(3) };
+            trimTimer.Tick += (s, args) =>
+            {
+                if (!IsVisible) { try { EmptyWorkingSet(GetCurrentProcess()); } catch { } }
+            };
+            trimTimer.Start();
+
             // A second launch (desktop icon while running in the tray) asks this
             // instance to show its window; there is only ever one console process.
             Thread listener = new Thread(delegate ()

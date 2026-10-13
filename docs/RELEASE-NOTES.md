@@ -1,5 +1,16 @@
 # Release Notes
 
+## XkScreen v0.2.3 — Tray memory stays trimmed
+
+### Fixed
+
+- The console only trimmed its working set at the moment it hid to the tray; afterwards Windows paged its used pages back in and the tray footprint crept from ≈ 7 MB towards ≈ 20 MB private. A periodic trim (every 3 minutes while hidden) now keeps it down: measured **3.9 MB private / 12.7 MB total** in the tray (after 8.4 MB / 35.7 MB immediately on hide).
+
+### Notes
+
+- If you see `msedgewebview2.exe` processes holding a few hundred MB in Task Manager, check the user-data folder in the command line: ours lives in `C:\XkScreen\gui\XkScreen.Gui.exe.WebView2` and only exists while the console window is open. The ones under `…\Packages\MicrosoftWindows.Client.CBS_…\EBWebView` belong to Windows itself (widgets/search/settings).
+- Current resident cost with the console in the tray: service ≈ 12 MB + console ≈ 5 MB private working set.
+
 ## XkScreen v0.2.2 — 12× lower CPU
 
 ### Changed
