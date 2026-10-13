@@ -44,7 +44,7 @@ XkScreen 通过厂商安装的组件驱动设备，并重新实现了帧管线�
 | | |
 |---|---|
 | 系统 | Windows 10 / 11 x64 |
-| 厂商软件 | 必须已安装原版 **SystemTemperatureMonitoring**（爱国者星璨小岚机箱小屏的官方驱动）—— XkScreen 复用其 `XKWLib.dll` / `TempComm.dll` / `HardwareHelp64.dll` / CPUID SDK 组件完成设备链路与硬件遥测。**这些文件不随本仓库分发。**<br/>官方原版驱动下载地址：**https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx**（爱国者官网 HuaqiHOME 下载页） |
+| 厂商软件 | 必须已安装原版 **SystemTemperatureMonitoring**（爱国者星璨小岚机箱小屏的官方驱动）—— XkScreen 复用其 `XKWLib.dll` / `TempComm.dll` / `HardwareHelp64.dll` / CPUID SDK 组件完成设备链路与硬件遥测。**这些文件不随本仓库分发。**<br/>官方原版驱动下载地址：[aigodiy.com/HuaqiHOMEAPP/index.aspx](https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx)（爱国者官网 HuaqiHOME 下载页） |
 | 权限 | 管理员（CPUID SDK 需要驱动级硬件访问才能读取传感器；非管理员启动将没有传感器数据，控制台会显示警示横幅） |
 | 构建工具 | .NET SDK 8+、Node.js 20+（仅前端构建需要） |
 
@@ -54,7 +54,7 @@ XkScreen 通过厂商安装的组件驱动设备，并重新实现了帧管线�
 
 **A. 一键安装包（推荐）** —— 从 [Releases](https://github.com/Arimayuki03/xkscreen/releases) 下载 `XkScreen-Setup-*.exe`，双击运行（需要管理员权限，会弹一次 UAC 确认）：
 
-- 自动检测已安装的原版 **SystemTemperatureMonitoring** 并复制其必要组件（**请先安装原版**——官方下载地址：https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx ；这些组件不随本仓库分发）
+- 自动检测已安装的原版 **SystemTemperatureMonitoring** 并复制其必要组件（**请先安装原版**——官方下载地址：[aigodiy.com/HuaqiHOMEAPP/index.aspx](https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx)，这些组件不随本仓库分发）
 - 安装时会把原版服务 `SystemTemperatureMonitoring` **降级为手动启动**（避免它和 XkScreen 抢屏），卸载时自动恢复为自动启动
 - 安装到 `C:\XkScreen`（刻意选择无空格路径：本机的任务计划器会拒绝带空格的目标路径）
 - 注册开机自启任务（SYSTEM）＋ 每小时**看门狗**（服务意外退出自动拉起；运行满 48 小时主动重启一次，绕开任务计划器默认 72 小时运行上限）
@@ -66,7 +66,7 @@ XkScreen 通过厂商安装的组件驱动设备，并重新实现了帧管线�
 
 > 适用对象：安装了**爱国者星璨小岚**机箱（小屏型号 XK003）的 Windows 10/11 用户。
 
-1. **装原版驱动**：先从 https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx 安装官方原版（只需装一次，之后不用运行它）。
+1. **装原版驱动**：先从 [爱国者官网下载页](https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx) 安装官方原版（只需装一次，之后不用运行它）。
 2. **装 XkScreen**：双击 `XkScreen-Setup-*.exe`（一次 UAC 确认）。安装程序会自动把必要组件复制进 `C:\XkScreen`、注册开机自启、并立刻点亮屏幕。
 3. **打开控制台**：双击桌面「XkScreen 控制台」；或者浏览器打开 `http://127.0.0.1:8899/`（网页版功能完全一样，不用额外启动任何东西）。
 4. **配置圆环**（左栏「CPU 圆环 / GPU 圆环」）：每个圆环有上、下两个数字槽。点下拉框选数据源——CPU 占用、温度、频率、功耗、电压，GPU 对应项、内存占用/已用、网速、风扇转速、硬盘活动等 19 种实时数据，也可以填固定数字；选「自动」= 原版行为（占用/温度）。改完约 0.4 秒自动上屏。

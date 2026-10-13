@@ -44,7 +44,7 @@ XkScreen drives the device through the vendor's installed components (see Requir
 | | |
 |---|---|
 | OS | Windows 10 / 11 x64 |
-| Vendor software | The original **SystemTemperatureMonitoring** — the official driver of the aigo 星璨小岚 (Xingcan Xiaolan) chassis LCD — must be installed: XkScreen reuses its `XKWLib.dll` / `TempComm.dll` / `HardwareHelp64.dll` / CPUID SDK components for the device chain and hardware telemetry. **Not bundled in this repository.**<br/>Official driver download: **https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx** (aigo website, HuaqiHOME downloads) |
+| Vendor software | The original **SystemTemperatureMonitoring** — the official driver of the aigo 星璨小岚 (Xingcan Xiaolan) chassis LCD — must be installed: XkScreen reuses its `XKWLib.dll` / `TempComm.dll` / `HardwareHelp64.dll` / CPUID SDK components for the device chain and hardware telemetry. **Not bundled in this repository.**<br/>Official driver download: [aigodiy.com/HuaqiHOMEAPP/index.aspx](https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx) (aigo website, HuaqiHOME downloads) |
 | Privileges | Administrator (the CPUID SDK needs driver-level hardware access to read sensors; a non-elevated start has no sensor data and the console shows a warning banner) |
 | Build tools | .NET SDK 8+, Node.js 20+ (frontend only) |
 
@@ -54,7 +54,7 @@ Point XkScreen at the installed vendor folder with `--official-dir <path>`, the 
 
 **A. One-click installer (recommended)** — download `XkScreen-Setup-*.exe` from [Releases](https://github.com/Arimayuki03/xkscreen/releases) and double-click it (administrator rights / one UAC prompt):
 
-- detects the installed original **SystemTemperatureMonitoring** and copies the components it provides (**install that first** — official download: https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx — these components are not redistributed here)
+- detects the installed original **SystemTemperatureMonitoring** and copies the components it provides (**install that first** — official download: [aigodiy.com/HuaqiHOMEAPP/index.aspx](https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx), these components are not redistributed here)
 - sets the original service `SystemTemperatureMonitoring` to **manual start** (it would otherwise fight XkScreen for the screen) and restores auto-start on uninstall
 - installs to `C:\XkScreen` (deliberately a no-space path: this machine's Task Scheduler rejects spaced task targets)
 - registers a boot-time task (SYSTEM) plus an hourly **watchdog** (restarts the driver if it ever dies, and proactively every 48 h to sidestep the Task Scheduler's default 72 h execution limit)
@@ -66,7 +66,7 @@ Point XkScreen at the installed vendor folder with `--official-dir <path>`, the 
 
 > For Windows 10/11 machines with the **aigo 星璨小岚 (Xingcan Xiaolan)** chassis (LCD model XK003).
 
-1. **Install the original driver first** from https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx (install it once — XkScreen never runs it afterwards).
+1. **Install the original driver first** from the [aigo downloads page](https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx) (install it once — XkScreen never runs it afterwards).
 2. **Install XkScreen**: double-click `XkScreen-Setup-*.exe` (one UAC prompt). It copies the components it needs into `C:\XkScreen`, registers boot autostart and lights the screen right away.
 3. **Open the console**: the desktop shortcut “XkScreen 控制台”, or any browser at `http://127.0.0.1:8899/` (identical features; nothing extra to launch).
 4. **Rings**: each of the CPU/GPU rings has a top and a bottom 2-digit slot. Pick any of 19 live sources (CPU/GPU load, temperature, clock, power, voltage, RAM, network, fan RPM, disk activity) or a fixed number; “Auto” keeps the vendor behaviour (load/temperature). Changes reach the screen in ~0.4 s.
