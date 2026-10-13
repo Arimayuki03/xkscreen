@@ -19,6 +19,11 @@ type Config = {
   schOn: string;
   splitL: string;
   splitR: string;
+  effect: string;
+  effTarget: string;
+  effSpeed: string;
+  effOnScreenOn: string;
+  effOnTimerEnd: string;
 };
 
 const DEFAULT_CONFIG: Config = {
@@ -32,6 +37,11 @@ const DEFAULT_CONFIG: Config = {
   schOn: "07:00",
   splitL: "cpu_temp",
   splitR: "mem_pct",
+  effect: "off",
+  effTarget: "all",
+  effSpeed: "120",
+  effOnScreenOn: "none",
+  effOnTimerEnd: "none",
 };
 
 /** Map the UI state onto the driver's config schema. */
@@ -43,6 +53,11 @@ function toApi(c: Config) {
     interval_ms: c.interval_ms,
     screen: c.screen,
     ...(c.schEnabled ? { schedule: { off: c.schOff, on: c.schOn } } : {}),
+    effect: c.effect,
+    effect_target: c.effTarget,
+    effect_speed_ms: parseInt(c.effSpeed, 10) || 120,
+    effect_on_screen_on: c.effOnScreenOn,
+    effect_on_timer_end: c.effOnTimerEnd,
   };
 }
 
@@ -83,6 +98,28 @@ const UI = {
     disconnected: "未连接",
     sensorsInactive:
       "传感器未激活：请以管理员身份运行驱动（或使用计划任务启动），当前读数不可信",
+    fxPanel: "动画效果",
+    fxMode: "效果",
+    fxTarget: "区域",
+    fxSpeedLabel: "速度",
+    fxPlay: "播放一次",
+    fxOnScreenOn: "开屏时",
+    fxOnTimerEnd: "倒计时结束",
+    fxOff: "关闭",
+    fxScroll: "流水线",
+    fxChase: "跑马灯",
+    fxRain: "数字雨",
+    fxWave: "波浪",
+    fxCounter: "计数器",
+    fxGlitch: "故障闪烁",
+    fxTClock: "时钟",
+    fxTRings: "圆环",
+    fxTAll: "全部",
+    fxNone: "无",
+    fxSteins: "命运石之门",
+    fxBoot: "开机自检",
+    fxBurst: "故障爆发",
+    fxPlaying: "播放中…",
     previewHint: "屏幕实际显示内容 · 每格最多 2 位数字",
     refreshRate: "刷新频率",
     timesPerSec: "次/秒",
@@ -141,6 +178,28 @@ const UI = {
     disconnected: "Disconnected",
     sensorsInactive:
       "Sensors inactive: run the driver elevated (or via the scheduled task) — readings are not live",
+    fxPanel: "Animations",
+    fxMode: "Effect",
+    fxTarget: "Area",
+    fxSpeedLabel: "Speed",
+    fxPlay: "Play once",
+    fxOnScreenOn: "On screen-on",
+    fxOnTimerEnd: "On countdown end",
+    fxOff: "Off",
+    fxScroll: "Pipeline",
+    fxChase: "Chase",
+    fxRain: "Rain",
+    fxWave: "Wave",
+    fxCounter: "Counter",
+    fxGlitch: "Glitch",
+    fxTClock: "Clock",
+    fxTRings: "Rings",
+    fxTAll: "All",
+    fxNone: "None",
+    fxSteins: "Steins;Gate",
+    fxBoot: "Boot scan",
+    fxBurst: "Glitch burst",
+    fxPlaying: "Playing…",
     previewHint: "What the screen is showing · 2 digits per slot max",
     refreshRate: "Refresh rate",
     timesPerSec: "/s",
@@ -643,6 +702,7 @@ export default function Home() {
   const [screenEff, setScreenEff] = useState<"on" | "off">("on");
   const [connected, setConnected] = useState(false);
   const [sensorsActive, setSensorsActive] = useState(true);
+  const [fxPlaying, setFxPlaying] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ k: MsgKey; d?: string }>({ k: "connecting" });
 
   // clock input fields (kept locally, applied on change)
@@ -737,6 +797,11 @@ export default function Home() {
           schOn: sch && sch.on ? String(sch.on) : "07:00",
           splitL: msp ? msp[1].trim() : "cpu_temp",
           splitR: msp ? msp[2].trim() : "mem_pct",
+          effect: j.config.effect || "off",
+          effTarget: j.config.effect_target || "all",
+          effSpeed: String(j.config.effect_speed_ms || 120),
+          effOnScreenOn: j.config.effect_on_screen_on || "none",
+          effOnTimerEnd: j.config.effect_on_timer_end || "none",
         });
         if (/^[+-]\d+$/.test(tt)) setOffsetN(parseInt(tt, 10));
         const mf = tt.match(/^(\d{1,2}):(\d{2})$/);
@@ -778,6 +843,30 @@ export default function Home() {
       setMsg({ k: "applyOffline" });
     }
   }, []);
+
+  // one-shot animation playback (Steins;Gate scramble / boot scan / glitch burst)
+  const playEffect = useCallback(
+    async (name: string, durMs: number, spd: number) => {
+      try {
+        setFxPlaying(name);
+        await fetch(API + "/effect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            target: config.effTarget,
+            duration_ms: durMs,
+            speed_ms: spd,
+          }),
+        });
+        window.setTimeout(() => setFxPlaying(null), durMs + 400);
+      } catch {
+        setMsg({ k: "applyOffline" });
+        setFxPlaying(null);
+      }
+    },
+    [config.effTarget]
+  );
 
   const anchorRef = useRef<TimerAnchor>({ spec: "", at: 0 });
   const [, setTick] = useState(0);
@@ -1151,6 +1240,101 @@ export default function Home() {
                     />
                   </label>
                 )}
+              </div>
+            </div>
+          </Panel>
+
+          <Panel
+            title={t("fxPanel")}
+            right={
+              fxPlaying ? (
+                <span className="rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 px-2.5 py-0.5 text-xs text-fuchsia-300">
+                  {t("fxPlaying")}
+                </span>
+              ) : undefined
+            }
+          >
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="w-14 text-sm text-slate-300">{t("fxMode")}</span>
+                <Segmented<string>
+                  value={config.effect}
+                  options={[
+                    { v: "off", label: t("fxOff") },
+                    { v: "scroll", label: t("fxScroll") },
+                    { v: "chase", label: t("fxChase") },
+                    { v: "rain", label: t("fxRain") },
+                    { v: "wave", label: t("fxWave") },
+                    { v: "counter", label: t("fxCounter") },
+                    { v: "glitch", label: t("fxGlitch") },
+                  ]}
+                  onChange={(v) => setConfig((c) => ({ ...c, effect: v }))}
+                />
+              </div>
+              {config.effect !== "off" && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="w-14 text-sm text-slate-300">{t("fxTarget")}</span>
+                  <Segmented<string>
+                    value={config.effTarget}
+                    options={[
+                      { v: "clock", label: t("fxTClock") },
+                      { v: "rings", label: t("fxTRings") },
+                      { v: "all", label: t("fxTAll") },
+                    ]}
+                    onChange={(v) => setConfig((c) => ({ ...c, effTarget: v }))}
+                  />
+                  <span className="text-sm text-slate-300">{t("fxSpeedLabel")}</span>
+                  <Segmented<string>
+                    value={config.effSpeed}
+                    options={[
+                      { v: "60", label: "60" },
+                      { v: "90", label: "90" },
+                      { v: "120", label: "120" },
+                      { v: "200", label: "200" },
+                      { v: "350", label: "350" },
+                    ]}
+                    onChange={(v) => setConfig((c) => ({ ...c, effSpeed: v }))}
+                  />
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="w-14 text-sm text-slate-300">{t("fxPlay")}</span>
+                {[
+                  { n: "steinsgate", label: t("fxSteins"), dur: 3200, spd: 90 },
+                  { n: "boot", label: t("fxBoot"), dur: 1800, spd: 80 },
+                  { n: "burst", label: t("fxBurst"), dur: 900, spd: 70 },
+                ].map((fx) => (
+                  <button
+                    key={fx.n}
+                    type="button"
+                    onClick={() => playEffect(fx.n, fx.dur, fx.spd)}
+                    className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-sm text-fuchsia-300 transition-colors hover:bg-fuchsia-500/20"
+                  >
+                    {fx.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="w-14 text-sm text-slate-300">{t("fxOnScreenOn")}</span>
+                <Segmented<string>
+                  value={config.effOnScreenOn}
+                  options={[
+                    { v: "none", label: t("fxNone") },
+                    { v: "steinsgate", label: t("fxSteins") },
+                    { v: "boot", label: t("fxBoot") },
+                  ]}
+                  onChange={(v) => setConfig((c) => ({ ...c, effOnScreenOn: v }))}
+                />
+                <span className="text-sm text-slate-300">{t("fxOnTimerEnd")}</span>
+                <Segmented<string>
+                  value={config.effOnTimerEnd}
+                  options={[
+                    { v: "none", label: t("fxNone") },
+                    { v: "steinsgate", label: t("fxSteins") },
+                    { v: "boot", label: t("fxBoot") },
+                  ]}
+                  onChange={(v) => setConfig((c) => ({ ...c, effOnTimerEnd: v }))}
+                />
               </div>
             </div>
           </Panel>

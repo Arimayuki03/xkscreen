@@ -41,6 +41,13 @@ namespace XkScreen.Service
         /// <summary>Last clock-area content actually sent to the screen (HH:MM display string).</summary>
         internal static string LastShow = "";
 
+        /// <summary>Sensor cache for fast animation ticks (re-read at most ~1/s).</summary>
+        private static Dictionary<string, double> lastSensors;
+        private static DateTime lastHeavyMs = DateTime.MinValue;
+
+        /// <summary>Previous countdown value, for one-shot effects on 00:00.</summary>
+        private static int lastRemainSec;
+
         /// <summary>Stopwatch / countdown state (reset whenever the spec string changes).</summary>
         private sealed class TimerState
         {
@@ -229,6 +236,7 @@ namespace XkScreen.Service
                 {
                     int interval = 500;
                     string timeSpec = null;
+                    int effTickMs = 0;
                     try
                     {
                         Config cfg = Config.Load();
@@ -249,29 +257,89 @@ namespace XkScreen.Service
                             else
                             {
                                 Log.Write("screen ON - resuming");
+                                if (cfg.EffectOnScreenOn == "steinsgate" || cfg.EffectOnScreenOn == "boot")
+                                {
+                                    Effects.StartOneShot(cfg.EffectOnScreenOn, "all", 2600, 90);
+                                    Log.Write("effect on screen-on: " + cfg.EffectOnScreenOn);
+                                }
                             }
                         }
 
                         if (!screenOffState)
                         {
-                            Dictionary<string, double> sensors = Sensors.GetSensors();
+                            // Animation layer: an effect drives the six digit cells at its
+                            // own fast tick, while real sensor reads (and the official
+                            // CPU/GPU frames) slow down to the SDK's 1 Hz refresh rate.
+                            bool effActive = Effects.Active(cfg.Effect);
+                            bool heavy = !effActive || (DateTime.Now - lastHeavyMs).TotalMilliseconds >= 900;
+                            if (heavy)
+                            {
+                                lastSensors = Sensors.GetSensors();
+                                lastHeavyMs = DateTime.Now;
 
-                            // Push hardware data ourselves in the official frame formats.
-                            // This replaces SendDynamicDataNew entirely so each cycle emits
-                            // exactly ONE time frame - no more occasional real-time flashes
-                            // while a custom clock (timer/offset/fixed) is active.
-                            byte[] cpuArr = Sensors.BuildCpuArray();
-                            if (cpuArr != null) miSetCpuDyn.Invoke(null, new object[] { cpuArr, (uint)cpuArr.Length });
-                            byte[] gpuArr = Sensors.BuildGpuArray();
-                            if (gpuArr != null) miSetGpuDyn.Invoke(null, new object[] { gpuArr, (uint)gpuArr.Length });
+                                // Push hardware data ourselves in the official frame formats.
+                                // This replaces SendDynamicDataNew entirely so each cycle emits
+                                // exactly ONE time frame - no more occasional real-time flashes
+                                // while a custom clock (timer/offset/fixed) is active.
+                                byte[] cpuArr = Sensors.BuildCpuArray();
+                                if (cpuArr != null) miSetCpuDyn.Invoke(null, new object[] { cpuArr, (uint)cpuArr.Length });
+                                byte[] gpuArr = Sensors.BuildGpuArray();
+                                if (gpuArr != null) miSetGpuDyn.Invoke(null, new object[] { gpuArr, (uint)gpuArr.Length });
+                            }
+                            Dictionary<string, double> sensors = lastSensors != null ? lastSensors : Sensors.GetSensors();
 
                             byte[] rc = BuildRing(cfg.Cpu, sensors, "cpu");
-                            if (rc != null) miSetCpuDyn.Invoke(null, new object[] { rc, (uint)8 });
                             byte[] rg = BuildRing(cfg.Gpu, sensors, "gpu");
-                            if (rg != null) miSetGpuDyn.Invoke(null, new object[] { rg, (uint)8 });
-
                             byte[] tframe = BuildTimeFrame(cfg.Time, sensors);
+                            byte[] tbase = tframe != null ? tframe : TimeBytesFromDateTime(DateTime.Now);
+
+                            if (effActive)
+                            {
+                                int[] baseCells = new int[6];
+                                baseCells[0] = Sensors.ResolveSlot(SlotOr(cfg.Cpu, 0, "cpu_load"), sensors);
+                                baseCells[1] = Sensors.ResolveSlot(SlotOr(cfg.Cpu, 1, "cpu_temp"), sensors);
+                                baseCells[2] = Sensors.ResolveSlot(SlotOr(cfg.Gpu, 0, "gpu_load"), sensors);
+                                baseCells[3] = Sensors.ResolveSlot(SlotOr(cfg.Gpu, 1, "gpu_temp"), sensors);
+                                baseCells[4] = tbase[5];
+                                baseCells[5] = tbase[6];
+                                int[] outCells = new int[6];
+                                Effects.Step(cfg.Effect, cfg.EffectTarget, baseCells, outCells);
+
+                                string effTarget = Effects.EffectiveTarget(cfg.EffectTarget);
+                                if (effTarget == "rings" || effTarget == "all")
+                                {
+                                    rc = RingFrame(outCells[0], outCells[1]);
+                                    rg = RingFrame(outCells[2], outCells[3]);
+                                }
+                                if (effTarget == "clock" || effTarget == "all")
+                                {
+                                    byte[] tf = new byte[9];
+                                    tf[0] = tbase[0]; tf[1] = tbase[1]; tf[2] = tbase[2];
+                                    tf[3] = tbase[3]; tf[4] = tbase[4];
+                                    tf[5] = (byte)outCells[4];
+                                    tf[6] = (byte)outCells[5];
+                                    tframe = tf;
+                                }
+                                effTickMs = Effects.SpeedMs(cfg.EffectSpeedMs);
+                            }
+
+                            if (rc != null) miSetCpuDyn.Invoke(null, new object[] { rc, (uint)8 });
+                            if (rg != null) miSetGpuDyn.Invoke(null, new object[] { rg, (uint)8 });
                             Flush(tframe);
+
+                            // Countdown end: fire the configured one-shot exactly once,
+                            // when the displayed MM:SS reaches 00:00.
+                            if (cfg.EffectOnTimerEnd != "none" && timeSpec != null
+                                && timeSpec.StartsWith("timer_down") && !timeSpec.Contains("paused"))
+                            {
+                                int remain = Timer.BaseSec - (int)(DateTime.Now - Timer.T0).TotalSeconds;
+                                if (remain <= 0 && lastRemainSec > 0)
+                                {
+                                    Effects.StartOneShot(cfg.EffectOnTimerEnd, "all", 2600, 90);
+                                    Log.Write("effect on timer end: " + cfg.EffectOnTimerEnd);
+                                }
+                                lastRemainSec = remain;
+                            }
 
                             byte[] shown = tframe != null ? tframe : TimeBytesFromDateTime(DateTime.Now);
                             LastShow = ((int)shown[5]).ToString("00") + ":" + ((int)shown[6]).ToString("00");
@@ -291,7 +359,11 @@ namespace XkScreen.Service
                     int sleepMs = interval;
                     try
                     {
-                        if (!screenOffState && timeSpec != null && timeSpec.StartsWith("timer") && !timeSpec.Contains("paused"))
+                        if (!screenOffState && effTickMs > 0)
+                        {
+                            sleepMs = effTickMs;
+                        }
+                        else if (!screenOffState && timeSpec != null && timeSpec.StartsWith("timer") && !timeSpec.Contains("paused"))
                         {
                             double elapsedMs = (DateTime.Now - Timer.T0).TotalMilliseconds;
                             double toBoundary = 1000.0 - (elapsedMs % 1000.0);
@@ -334,6 +406,25 @@ namespace XkScreen.Service
             b[1] = Sensors.ResolveSlot(pair[1] == "auto" ? d1 : pair[1], sensors);
             b[2] = 0x24; b[3] = 0x13;
             return b;
+        }
+
+        /// <summary>Ring override frame with explicit values (animation layer).</summary>
+        private static byte[] RingFrame(int top, int bottom)
+        {
+            byte[] b = new byte[8];
+            b[0] = (byte)Math.Max(0, Math.Min(99, top));
+            b[1] = (byte)Math.Max(0, Math.Min(99, bottom));
+            b[2] = 0x24; b[3] = 0x13;
+            return b;
+        }
+
+        /// <summary>Config slot token, with the "auto" default token substitution.</summary>
+        private static string SlotOr(string[] pair, int idx, string dflt)
+        {
+            if (pair == null || pair.Length <= idx) return dflt;
+            string t = pair[idx];
+            if (string.IsNullOrEmpty(t) || t == "auto") return dflt;
+            return t;
         }
 
         /// <summary>
@@ -611,7 +702,61 @@ namespace XkScreen.Service
                 root["show"] = LastShow;
                 root["screen"] = screenOffState ? "off" : "on";
                 root["sensors_active"] = sensors.ContainsKey("cpu_load");
+                try
+                {
+                    Config cfg2 = Config.Load();
+                    root["effect"] = cfg2.Effect;
+                    root["effect_target"] = cfg2.EffectTarget;
+                    root["effect_oneshot"] = Effects.OneShot;
+                    root["effect_active"] = Effects.Active(cfg2.Effect);
+                }
+                catch { }
                 WriteJson(res, root);
+                return;
+            }
+
+            if (req.HttpMethod == "POST" && path == "/effect")
+            {
+                string body;
+                using (StreamReader sr = new StreamReader(req.InputStream, Encoding.UTF8))
+                    body = sr.ReadToEnd();
+
+                Dictionary<string, object> resp = new Dictionary<string, object>();
+                try
+                {
+                    JavaScriptSerializer fxSer = new JavaScriptSerializer();
+                    Dictionary<string, object> fx = fxSer.Deserialize<Dictionary<string, object>>(body);
+                    string name = fx != null && fx.ContainsKey("name") ? Convert.ToString(fx["name"]).Trim().ToLowerInvariant() : "";
+                    if (name == "stop" || name == "off" || name == "none")
+                    {
+                        Effects.StopOneShot();
+                        resp["ok"] = true;
+                    }
+                    else if (!Effects.IsValidOneShot(name))
+                    {
+                        resp["ok"] = false;
+                        resp["error"] = "unknown effect (steinsgate | boot | burst | stop)";
+                    }
+                    else
+                    {
+                        string target = fx.ContainsKey("target") ? Convert.ToString(fx["target"]).Trim().ToLowerInvariant() : "all";
+                        if (!Effects.IsValidTarget(target)) { resp["ok"] = false; resp["error"] = "bad target (clock | rings | all)"; }
+                        else
+                        {
+                            int dur = 3000;
+                            if (fx.ContainsKey("duration_ms"))
+                                int.TryParse(Convert.ToString(fx["duration_ms"]), out dur);
+                            int spd = 90;
+                            if (fx.ContainsKey("speed_ms"))
+                                int.TryParse(Convert.ToString(fx["speed_ms"]), out spd);
+                            Effects.StartOneShot(name, target, dur, spd);
+                            Log.Write("one-shot effect: " + name + " target:" + target + " " + dur + "ms/" + spd + "ms");
+                            resp["ok"] = true;
+                        }
+                    }
+                }
+                catch (Exception fex) { resp["ok"] = false; resp["error"] = "exc: " + fex.Message; }
+                WriteJson(res, resp);
                 return;
             }
 

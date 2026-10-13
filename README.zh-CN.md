@@ -23,6 +23,7 @@
 
 - **圆环显示任意数据** —— 四个数字位（CPU 环上/下格、GPU 环上/下格）可映射到 **19 种实时数据源**：CPU/GPU 占用、温度、频率、功耗、电压、风扇转速、内存占用、网速、硬盘活动 —— 或固定数值。
 - **时钟完全可控** —— 跟随系统 / 偏移（快慢 N 分钟）/ 固定时间 / **分格定制**（时钟区左右两组 2 位数字分别映射任意数据源或固定值，如 `split:cpu_temp,mem_pct` 显示 `44:47`，冒号由固件固定）/ **秒表**（MM:SS）/ **倒计时**，带 开始 / 暂停 / 继续 / 重置 按钮。计时器发帧对齐到秒边界，屏幕跳秒干脆利落。
+- **屏幕动画** —— 把数字变成“灯光”：**流水线**（数字传送带，逐格流动）、**跑马灯**（`88` 像 RGB 跑灯一样绕格追逐）、**数字雨**、**波浪**、**计数器**、**故障闪烁** 六种持续效果，各有 目标（时钟 / 圆环 / 全部）与 速度；一键特效包含 **命运石之门发散计**（数字乱跳后逐格锁定真值）、**开机自检**、**故障爆发** —— 还可在开屏时或倒计时归零时自动触发乱跳。
 - **屏幕开关与定时** —— 一键关屏/开屏，或设置每日熄屏时段（如 23:30 关、07:00 开，支持跨午夜）。关屏时暂停全部发帧（面板无掉电保持，即变黑、驱动也随之空闲），恢复时自动重新握手点亮。
 - **网页控制台** —— 驱动自带界面托管：浏览器直接打开 `http://127.0.0.1:8899/`，或用带**托盘图标**的无边框桌面窗口（WebView2）——鼠标悬停即可看到 CPU/GPU/内存实时数据，托盘菜单可开关屏、打开网页界面，并选择"关闭窗口收进托盘"还是"直接退出"。中英文可切换，改动即时上屏。
 - **轻量设计** —— 编译版 .NET 驱动常驻内存 **约 30 MB**（工作集，定期修剪）；控制台关闭时零占用；无 Electron、无 Node 运行时。
@@ -78,7 +79,12 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
   "time": "auto",
   "interval_ms": 500,
   "screen": "on",
-  "schedule": { "off": "23:30", "on": "07:00" }
+  "schedule": { "off": "23:30", "on": "07:00" },
+  "effect": "off",
+  "effect_target": "all",
+  "effect_speed_ms": 120,
+  "effect_on_screen_on": "none",
+  "effect_on_timer_end": "none"
 }
 ```
 
@@ -114,6 +120,33 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
 | `timer_down:MM:SS` | 倒计时，归零停住 |
 | `timer_down_paused:MM:SS` | 倒计时冻结显示 |
 
+### 动画效果
+
+屏幕只能改数字值（颜色与亮度由固件固定），所以所有效果都是「按节奏改写数字」的序列，作用于六个显示格：CPU 圆环上/下、GPU 圆环上/下、时钟区左右两组 2 位数字。效果按 `effect_speed_ms`（60-1000 毫秒）刷新，且始终叠加在真实数据之上。
+
+| `effect` | 效果 |
+|---|---|
+| `off` | 关闭（默认） |
+| `scroll` | **流水线** —— 数字传送带：每拍整体左移一格，新数字从右侧流入 |
+| `chase` | **跑马灯** —— `88` 像 RGB 跑灯一样绕格追逐 |
+| `rain` | **数字雨** —— 目标区域每拍全部随机 |
+| `wave` | 正弦波浪沿各格流动 |
+| `counter` | 多速计数器（时钟区 = 四位计数） |
+| `glitch` | 真实数据 + 偶发故障乱码 |
+
+`effect_target`：`clock` | `rings` | `all`（默认）。
+
+一次性特效可从控制台或 API 随时播放，叠加在当前持续效果之上，结束后回落真实数据：
+
+| `POST /effect` name | 效果 |
+|---|---|
+| `steinsgate` | **命运石之门发散计**：数字乱跳后逐格锁定真值（约 3 秒） |
+| `boot` | 全 `88` 闪屏 → 里程表式爬升 → 归位（约 1.8 秒） |
+| `burst` | 短促高强度故障乱码（约 0.9 秒） |
+| `stop` | 取消正在播放的一次性特效 |
+
+两个自动触发：`effect_on_screen_on` 在屏幕亮起时播放一次性特效；`effect_on_timer_end` 在倒计时归零时播放（取值均为 `none` | `steinsgate` | `boot`）。
+
 ### 屏幕电源
 
 | 取值 | 含义 |
@@ -129,6 +162,7 @@ product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe --official-dir "
 - `GET /` —— 网页控制台（`/_next/...` 下的静态资源同样 200）
 - `GET /status` —— `{ ok, config, sensors, show, screen, sensors_active }`（`show` = 时钟区当前实际显示内容，`screen` = 生效的电源状态，`sensors_active` = 服务无传感器权限时为 false）
 - `POST /config` —— 校验并保存配置（schema 同 `config.json`）
+- `POST /effect` —— 播放一次性特效：`{"name":"steinsgate","target":"all","duration_ms":3200,"speed_ms":90}`（`name` = `steinsgate` | `boot` | `burst` | `stop`）
 
 ## ⚠️ 已知限制
 

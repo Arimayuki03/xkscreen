@@ -1,5 +1,19 @@
 # Release Notes
 
+## XkScreen v0.1.4 — Screen animations
+
+### Added
+
+- **Animation engine** — the panel only accepts digit values (colors and brightness are firmware-fixed), so every effect is a scripted value sequence over the six display cells (rings CPU/GPU top/bottom + the clock's two 2-digit groups), layered on top of the real data at 60-1000 ms per tick:
+  - Persistent modes: **pipeline** (`scroll`, a digit conveyor), **marquee** (`chase`, an `88` racing through the cells like an RGB chase), **digital rain**, **wave**, **counter** and **glitch** — each with a target (`clock` / `rings` / `all`) and speed.
+  - One-shots (console buttons or `POST /effect`): **Steins;Gate divergence-meter scramble** (digits flicker, then lock onto the real values one by one), **boot scan** (all-`88` flash → odometer ramp → settle) and **glitch burst**.
+  - Automatic triggers: play a one-shot on screen-on or when a countdown reaches `00:00`.
+- New config keys: `effect`, `effect_target`, `effect_speed_ms`, `effect_on_screen_on`, `effect_on_timer_end`; new API `POST /effect`; `/status` now reports the effect state; the console has a bilingual **Animations** panel.
+
+### Notes
+
+- Verified live: the effect tick drives the loop at ~125 ms per frame (≈ 8 fps) while sensor reads slow down to the SDK's 1 Hz refresh; every mode's digit sequence was checked against its design (pipeline `11:23 → 23:45 → 78:90`, marquee `08:88 ↔ 88:52`, counter `09:23 → 09:62 → 10:01`, …).
+
 ## XkScreen v0.1.3 — GPU fan & sensor init hardening
 
 ### Added

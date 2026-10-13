@@ -30,6 +30,16 @@ namespace XkScreen.Service
         /// <summary>Optional daily off-window ("off" time and "on" time, HH:MM). Null = no schedule.</summary>
         public string ScheduleOff;
         public string ScheduleOn;
+        /// <summary>Persistent animation mode: off | scroll | chase | rain | wave | counter | glitch.</summary>
+        public string Effect = "off";
+        /// <summary>Animation target: clock | rings | all.</summary>
+        public string EffectTarget = "all";
+        /// <summary>Animation tick in ms (60-1000).</summary>
+        public int EffectSpeedMs = 120;
+        /// <summary>One-shot played when the screen powers on: none | steinsgate | boot.</summary>
+        public string EffectOnScreenOn = "none";
+        /// <summary>One-shot played when a countdown reaches 00:00: none | steinsgate | boot.</summary>
+        public string EffectOnTimerEnd = "none";
 
         private static readonly string Dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "XkScreen");
@@ -84,6 +94,32 @@ namespace XkScreen.Service
                         if (sc.ContainsKey("off") && sc["off"] != null) c.ScheduleOff = Convert.ToString(sc["off"]).Trim();
                         if (sc.ContainsKey("on") && sc["on"] != null) c.ScheduleOn = Convert.ToString(sc["on"]).Trim();
                     }
+                }
+                if (root.ContainsKey("effect") && root["effect"] != null)
+                {
+                    string ev = Convert.ToString(root["effect"]).Trim().ToLowerInvariant();
+                    if (Effects.IsValidMode(ev)) c.Effect = ev;
+                }
+                if (root.ContainsKey("effect_target") && root["effect_target"] != null)
+                {
+                    string et = Convert.ToString(root["effect_target"]).Trim().ToLowerInvariant();
+                    if (Effects.IsValidTarget(et)) c.EffectTarget = et;
+                }
+                if (root.ContainsKey("effect_speed_ms") && root["effect_speed_ms"] != null)
+                {
+                    int es;
+                    if (int.TryParse(Convert.ToString(root["effect_speed_ms"]), out es) && es >= 60 && es <= 1000)
+                        c.EffectSpeedMs = es;
+                }
+                if (root.ContainsKey("effect_on_screen_on") && root["effect_on_screen_on"] != null)
+                {
+                    string eo = Convert.ToString(root["effect_on_screen_on"]).Trim().ToLowerInvariant();
+                    if (eo == "none" || Effects.IsValidOneShot(eo)) c.EffectOnScreenOn = eo;
+                }
+                if (root.ContainsKey("effect_on_timer_end") && root["effect_on_timer_end"] != null)
+                {
+                    string ee = Convert.ToString(root["effect_on_timer_end"]).Trim().ToLowerInvariant();
+                    if (ee == "none" || Effects.IsValidOneShot(ee)) c.EffectOnTimerEnd = ee;
                 }
             }
             catch (Exception ex) { Log.Write("config load exc: " + ex.Message); }
@@ -176,6 +212,42 @@ namespace XkScreen.Service
                     canon["schedule"] = sd;
                 }
 
+                string effect = "off";
+                if (root.ContainsKey("effect") && root["effect"] != null)
+                {
+                    effect = Convert.ToString(root["effect"]).Trim().ToLowerInvariant();
+                    if (!Effects.IsValidMode(effect)) return "bad effect mode";
+                }
+                string effTarget = "all";
+                if (root.ContainsKey("effect_target") && root["effect_target"] != null)
+                {
+                    effTarget = Convert.ToString(root["effect_target"]).Trim().ToLowerInvariant();
+                    if (!Effects.IsValidTarget(effTarget)) return "bad effect target";
+                }
+                int effSpeed = 120;
+                if (root.ContainsKey("effect_speed_ms") && root["effect_speed_ms"] != null)
+                {
+                    if (!int.TryParse(Convert.ToString(root["effect_speed_ms"]), out effSpeed)) return "bad effect speed";
+                    if (effSpeed < 60 || effSpeed > 1000) return "effect speed out of range (60-1000)";
+                }
+                string effOn = "none";
+                if (root.ContainsKey("effect_on_screen_on") && root["effect_on_screen_on"] != null)
+                {
+                    effOn = Convert.ToString(root["effect_on_screen_on"]).Trim().ToLowerInvariant();
+                    if (effOn != "none" && !Effects.IsValidOneShot(effOn)) return "bad effect_on_screen_on";
+                }
+                string effEnd = "none";
+                if (root.ContainsKey("effect_on_timer_end") && root["effect_on_timer_end"] != null)
+                {
+                    effEnd = Convert.ToString(root["effect_on_timer_end"]).Trim().ToLowerInvariant();
+                    if (effEnd != "none" && !Effects.IsValidOneShot(effEnd)) return "bad effect_on_timer_end";
+                }
+                canon["effect"] = effect;
+                canon["effect_target"] = effTarget;
+                canon["effect_speed_ms"] = effSpeed;
+                canon["effect_on_screen_on"] = effOn;
+                canon["effect_on_timer_end"] = effEnd;
+
                 if (!Directory.Exists(Dir)) Directory.CreateDirectory(Dir);
                 File.WriteAllText(FilePath, new JavaScriptSerializer().Serialize(canon), new UTF8Encoding(false));
                 return null;
@@ -253,7 +325,8 @@ namespace XkScreen.Service
         {
             string a = Cpu == null ? "auto" : (Cpu[0] + "/" + Cpu[1]);
             string b = Gpu == null ? "auto" : (Gpu[0] + "/" + Gpu[1]);
-            return "cpu:" + a + " gpu:" + b + " time:" + Time + " iv:" + IntervalMs;
+            return "cpu:" + a + " gpu:" + b + " time:" + Time + " iv:" + IntervalMs
+                + (Effect != "off" ? " fx:" + Effect + "/" + EffectTarget + "@" + EffectSpeedMs : "");
         }
     }
 }

@@ -23,6 +23,7 @@
 
 - **Any data on the rings** — map each of the four numeric slots (CPU ring top/bottom, GPU ring top/bottom) to any of 19 live sources: CPU/GPU load, temperature, clock, power, voltage, fan RPM, RAM usage, network speed, disk activity — or fixed values.
 - **Full clock control** — follow system time, offset (fast/slow by N minutes), fixed display, **stopwatch** (MM:SS), **countdown**, or **split mode**: drive the clock's two 2-digit groups independently with any data source or fixed value (`split:cpu_temp,mem_pct` → `44:47`; the colon is firmware-drawn). All with start / pause / resume / reset buttons. Timer frames are aligned to the second boundary so the display ticks crisply.
+- **Screen animations** — turn the digits into light: a **pipeline** (numbers flowing across the display), **marquee** (`88` racing through the cells like an RGB chase), **digital rain**, **wave**, **counter** and **glitch** modes, each with its own target (clock / rings / all) and speed. One-shot shows include the **Steins;Gate divergence-meter scramble** (digits flicker, then lock onto the real values one by one), a **boot scan** and a **glitch burst** — and the scramble can fire automatically on screen-on or when a countdown hits 00:00.
 - **Screen power & schedule** — turn the display off/on with one click, or set a daily off-window (e.g. dark from 23:30 to 07:00, midnight wrap supported). While off, all frames pause — the panel goes dark and the driver idles — and resuming re-arms the device with a fresh handshake.
 - **Live web console** — the driver hosts the UI itself: open `http://127.0.0.1:8899/` in any browser, or use the frameless desktop window (WebView2) with a **tray icon** — hover to see live CPU/GPU/RAM, and the tray menu toggles the screen, opens the web UI, and chooses close-to-tray or exit. Chinese / English switchable, changes apply instantly.
 - **Lightweight by design** — compiled .NET driver at **~30 MB** resident memory (working set, periodically trimmed); zero cost when the console is closed; no Electron, no Node.js runtime.
@@ -78,7 +79,12 @@ Everything lives in `C:\ProgramData\XkScreen\config.json` (hot-reloaded; edits a
   "time": "auto",
   "interval_ms": 500,
   "screen": "on",
-  "schedule": { "off": "23:30", "on": "07:00" }
+  "schedule": { "off": "23:30", "on": "07:00" },
+  "effect": "off",
+  "effect_target": "all",
+  "effect_speed_ms": 120,
+  "effect_on_screen_on": "none",
+  "effect_on_timer_end": "none"
 }
 ```
 
@@ -114,6 +120,33 @@ Everything lives in `C:\ProgramData\XkScreen\config.json` (hot-reloaded; edits a
 | `timer_down:MM:SS` | countdown, stops at 00:00 |
 | `timer_down_paused:MM:SS` | frozen countdown display |
 
+### Animations
+
+The panel can only change digit *values* (colors and brightness are firmware-fixed), so every effect is a scripted value sequence over the six display cells — rings CPU top/bottom, GPU top/bottom, and the clock's two 2-digit groups. Effects run at `effect_speed_ms` (60-1000 ms) and always layer on top of the real data.
+
+| `effect` | Effect |
+|---|---|
+| `off` | no animation (default) |
+| `scroll` | **pipeline** — a conveyor belt: digits slide one position per tick with fresh values streaming in |
+| `chase` | **marquee** — an `88` races through the cells like an RGB chase |
+| `rain` | **digital rain** — every targeted cell goes random each tick |
+| `wave` | a sine wave travels along the cells |
+| `counter` | multi-speed counters (clock = 4-digit counter) |
+| `glitch` | real data with occasional corruption bursts |
+
+`effect_target`: `clock` | `rings` | `all` (default).
+
+One-shot animations can be played at any time from the console or the API — they layer over the current persistent effect and settle back onto real data:
+
+| `POST /effect` name | Show |
+|---|---|
+| `steinsgate` | **divergence-meter scramble**: digits flicker randomly, then lock onto the real values one by one (~3 s) |
+| `boot` | all-`88` flash, odometer ramp, settle (~1.8 s) |
+| `burst` | short heavy glitch (~0.9 s) |
+| `stop` | cancel the running one-shot |
+
+Two automatic triggers: `effect_on_screen_on` plays a one-shot when the screen powers on; `effect_on_timer_end` when a countdown reaches `00:00` (both accept `none` | `steinsgate` | `boot`).
+
 ### Screen power
 
 | Value | Meaning |
@@ -129,6 +162,7 @@ The driver serves both the UI and a small JSON API on loopback only (`127.0.0.1:
 - `GET /` — the web console (also 200 for any asset under `/_next/...`)
 - `GET /status` — `{ ok, config, sensors, show, screen, sensors_active }` (`show` = what the clock area currently displays, `screen` = effective power state, `sensors_active` = false when the service runs without sensor access)
 - `POST /config` — validated config save (same schema as `config.json`)
+- `POST /effect` — play a one-shot animation: `{"name":"steinsgate","target":"all","duration_ms":3200,"speed_ms":90}` (`name` = `steinsgate` | `boot` | `burst` | `stop`)
 
 ## ⚠️ Known limitations
 

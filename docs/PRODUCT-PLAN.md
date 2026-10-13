@@ -108,6 +108,17 @@
     `GetDisplayAdapterFanSpeed` 返回 -1、NVML RPM 接口 rc=25 不支持），改用 **NVML 百分比**
     （`nvml.dll` 随显卡驱动分发）：实测与 `nvidia-smi` 完全一致（40% == 40%），零风扇停转时为 0。
     UI：`gpu_fan` 标签改为「GPU 风扇（%）」
+  - **屏幕动画效果引擎**（2026-10-13）：新增 `Effects.cs` —— 屏幕只有数字值可控（颜色/亮度固件固定），
+    因此效果=按 `effect_speed_ms` 改写六个动画格（圆环 4 格 + 时钟区左右 2 格）的序列，始终叠加在真实数据上。
+    持续效果：流水线 scroll（数字传送带，逐格流动）/跑马灯 chase（88 绕格追逐）/数字雨 rain/波浪 wave/
+    多速计数 counter/故障闪烁 glitch；一次性特效：命运石之门 steinsgate（乱跳后按随机顺序逐格锁定真值，
+    锁定阈值按目标格数均布在整个时长）/开机自检 boot（全 88 闪 → 里程表爬升 → 归位）/故障爆发 burst；
+    分层设计：一次性特效叠加在持续效果之上，结束自动回落。自动触发：开屏时 / 倒计时归零时（none|steinsgate|boot）。
+    配置新增 `effect` / `effect_target` / `effect_speed_ms` / `effect_on_screen_on` / `effect_on_timer_end`；
+    API 新增 `POST /effect`（name/target/duration_ms/speed_ms，支持 stop）；`/status` 增加效果状态字段。
+    控制台新增「动画效果」面板（模式/区域/速度/一键播放/自动触发，双语）。
+    实测（服务日志）：效果模式 40 次循环 5 秒 ≈ 125ms/帧（8 帧/秒），基线 24 秒；各持续效果 `show`
+    序列符合设计（流水线 `11:23→23:45→78:90`、跑马灯 `08:88↔88:52`、计数 `09:23→09:62→10:01` 等）
 - [x] **M5 优化 + 开源发布**（2026-10-13 完成）：
   - **内存**：服务常驻 126 → **~28 MB**（启动后及每 10 分钟修剪冷工作集）；GUI 全树 514 → **476 MB**
     （WebView2 以 `--disable-gpu` 软件渲染）；界面关闭 = 零占用；无 Electron / Node 常驻
