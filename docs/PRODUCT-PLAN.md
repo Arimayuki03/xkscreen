@@ -132,6 +132,7 @@
   开始菜单/桌面快捷方式、中文向导（UTF-8 BOM）、卸载器（保留 ProgramData 配置）。
   两种构建：公开版（不含厂商二进制，安装时从原版复制）与个人内置版（`/DEmbedVendor=1`，DLL 打进包内）。
   实机验证：安装/静默安装、任务创建、服务以 SYSTEM 运行、传感器数据、看门狗自愈（杀掉服务 3 秒内拉回）。
+  安装时自动把官方服务 `SystemTemperatureMonitoring` 降级为手动（避免抢屏），卸载时恢复为自动。
   平台坑（已绕过并记录）：本机 Task Scheduler 对 1) 带空格的目标路径 2) 未签名 .exe 作为任务目标
   一律返回 E_FAIL（CIM/PowerShell 注册通道亦不可用）→ 任务改为指向 `service_host.cmd`（cmd 前台托管服务）；
   schtasks 默认 72 小时运行上限 → 看门狗 48 小时主动重启重置

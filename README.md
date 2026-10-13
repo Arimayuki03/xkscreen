@@ -55,6 +55,7 @@ Point XkScreen at the installed vendor folder with `--official-dir <path>`, the 
 **A. One-click installer (recommended)** — download `XkScreen-Setup-*.exe` from [Releases](https://github.com/Arimayuki03/xkscreen/releases) and double-click it (administrator rights / one UAC prompt):
 
 - detects the installed original **SystemTemperatureMonitoring** and copies the components it provides (install that first — it is not redistributed here)
+- sets the original service `SystemTemperatureMonitoring` to **manual start** (it would otherwise fight XkScreen for the screen) and restores auto-start on uninstall
 - installs to `C:\XkScreen` (deliberately a no-space path: this machine's Task Scheduler rejects spaced task targets)
 - registers a boot-time task (SYSTEM) plus an hourly **watchdog** (restarts the driver if it ever dies, and proactively every 48 h to sidestep the Task Scheduler's default 72 h execution limit)
 - creates Start-menu/desktop shortcuts and offers to launch the console at the end; the uninstaller lives in the Start menu and keeps `%ProgramData%\XkScreen\config.json`

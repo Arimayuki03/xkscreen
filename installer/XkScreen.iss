@@ -127,6 +127,9 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/IM XkScreen.Gui.exe /F"; Flags: ru
 Filename: "{sys}\taskkill.exe"; Parameters: "/IM XkScreen.Service.exe /F"; Flags: runhidden; RunOnceId: "killService"
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""XKScreenDriver"" /F"; Flags: runhidden; RunOnceId: "taskDelete"
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""XKScreenDriverWatch"" /F"; Flags: runhidden; RunOnceId: "watchDelete"
+; Uninstalling XkScreen returns the machine to its prior state: the original
+; vendor service goes back to auto-start.
+Filename: "{sys}\sc.exe"; Parameters: "config SystemTemperatureMonitoring start= auto"; Flags: runhidden; RunOnceId: "restoreVendor"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\vendor"

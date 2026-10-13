@@ -16,5 +16,11 @@ echo   watch-task create exit=%errorlevel% >> "%LOG%"
 
 schtasks /Run /TN XKScreenDriver >> "%LOG%" 2>&1
 echo   driver-task run exit=%errorlevel% >> "%LOG%"
+
+rem Keep the original vendor service out of the boot path: it starts sending
+rem screen frames on its own and would fight our driver for the USB device.
+sc config SystemTemperatureMonitoring start= demand >> "%LOG%" 2>&1
+echo   vendor-service set-to-manual exit=%errorlevel% >> "%LOG%"
+sc stop SystemTemperatureMonitoring >> "%LOG%" 2>&1
 echo done. >> "%LOG%"
 endlocal

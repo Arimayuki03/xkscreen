@@ -6,6 +6,7 @@
 
 - **One-click installer** (`XkScreen-Setup-0.2.0.exe`, Inno Setup, Chinese wizard): detects an installed copy of the original software and copies the vendor components it needs, installs the driver + web console + desktop console to `C:\XkScreen`, registers boot autostart and start-menu/desktop shortcuts, and starts the driver before the wizard closes. An uninstaller (Start menu → 卸载 XkScreen) removes everything; your `config.json` is kept.
 - **Hourly watchdog task** — restarts the driver if the process ever dies, and proactively every 48 h. (Tasks created via `schtasks` inherit a default 72 h execution-time limit that would otherwise blank the screen every 3 days; the watchdog resets it.)
+- The installer sets the original service `SystemTemperatureMonitoring` to **manual start** (it auto-started by default and would fight XkScreen for the USB screen) and restores auto-start when XkScreen is uninstalled.
 - `installer/` in the repository: the Inno script supports a public build (vendor-free; components are copied from the user's own original install at install time) and a personal build with the vendor DLLs embedded (`iscc /DEmbedVendor=1 /DVendorDir=<official>`).
 
 ### Notes
