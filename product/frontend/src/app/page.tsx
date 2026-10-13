@@ -120,6 +120,7 @@ const UI = {
     fxBoot: "开机自检",
     fxBurst: "故障爆发",
     fxPlaying: "播放中…",
+    aboutLine: "XkScreen · 适用于爱国者星璨小岚机箱小屏（XK003）· 原版驱动下载：",
     previewHint: "屏幕实际显示内容 · 每格最多 2 位数字",
     refreshRate: "刷新频率",
     timesPerSec: "次/秒",
@@ -200,6 +201,7 @@ const UI = {
     fxBoot: "Boot scan",
     fxBurst: "Glitch burst",
     fxPlaying: "Playing…",
+    aboutLine: "XkScreen · for the aigo 星璨小岚 chassis LCD (XK003) · Original driver download:",
     previewHint: "What the screen is showing · 2 digits per slot max",
     refreshRate: "Refresh rate",
     timesPerSec: "/s",
@@ -1398,6 +1400,19 @@ export default function Home() {
             </div>
           </Panel>
         </div>
+      </div>
+
+      {/* about footer */}
+      <div className="flex-none text-center text-[11px] text-slate-600">
+        {t("aboutLine")}{" "}
+        <a
+          href="https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx"
+          target="_blank"
+          rel="noreferrer"
+          className="text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300"
+        >
+          aigodiy.com/HuaqiHOMEAPP
+        </a>
       </div>
     </div>
   );

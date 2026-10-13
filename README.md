@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/images/icon.png" width="96" alt="XkScreen icon"/>
   <h1>XkScreen</h1>
-  <p><b>Open-source control suite for the Xingcan / XK003 chassis LCD</b><br/>
+  <p><b>Open-source control suite for the aigo 星璨小岚 (Xingcan Xiaolan / XK003) chassis LCD</b><br/>
   Put <i>any</i> sensor data on the little screen's CPU/GPU rings and clock — with a modern web console.</p>
 </div>
 
@@ -44,7 +44,7 @@ XkScreen drives the device through the vendor's installed components (see Requir
 | | |
 |---|---|
 | OS | Windows 10 / 11 x64 |
-| Vendor software | The original **SystemTemperatureMonitoring** (Xingcan screen utility) must be installed — XkScreen reuses its `XKWLib.dll` / `TempComm.dll` / `HardwareHelp64.dll` / CPUID SDK components for the device chain and hardware telemetry. **These files are not bundled in this repository.** |
+| Vendor software | The original **SystemTemperatureMonitoring** — the official driver of the aigo 星璨小岚 (Xingcan Xiaolan) chassis LCD — must be installed: XkScreen reuses its `XKWLib.dll` / `TempComm.dll` / `HardwareHelp64.dll` / CPUID SDK components for the device chain and hardware telemetry. **Not bundled in this repository.**<br/>Official driver download: **https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx** (aigo website, HuaqiHOME downloads) |
 | Privileges | Administrator (the CPUID SDK needs driver-level hardware access to read sensors; a non-elevated start has no sensor data and the console shows a warning banner) |
 | Build tools | .NET SDK 8+, Node.js 20+ (frontend only) |
 
@@ -54,13 +54,30 @@ Point XkScreen at the installed vendor folder with `--official-dir <path>`, the 
 
 **A. One-click installer (recommended)** — download `XkScreen-Setup-*.exe` from [Releases](https://github.com/Arimayuki03/xkscreen/releases) and double-click it (administrator rights / one UAC prompt):
 
-- detects the installed original **SystemTemperatureMonitoring** and copies the components it provides (install that first — it is not redistributed here)
+- detects the installed original **SystemTemperatureMonitoring** and copies the components it provides (**install that first** — official download: https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx — these components are not redistributed here)
 - sets the original service `SystemTemperatureMonitoring` to **manual start** (it would otherwise fight XkScreen for the screen) and restores auto-start on uninstall
 - installs to `C:\XkScreen` (deliberately a no-space path: this machine's Task Scheduler rejects spaced task targets)
 - registers a boot-time task (SYSTEM) plus an hourly **watchdog** (restarts the driver if it ever dies, and proactively every 48 h to sidestep the Task Scheduler's default 72 h execution limit)
 - creates Start-menu/desktop shortcuts and offers to launch the console at the end; the uninstaller lives in the Start menu and keeps `%ProgramData%\XkScreen\config.json`
 
 **B. From source** (development / custom builds) — see below.
+
+## 📖 Usage guide
+
+> For Windows 10/11 machines with the **aigo 星璨小岚 (Xingcan Xiaolan)** chassis (LCD model XK003).
+
+1. **Install the original driver first** from https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx (install it once — XkScreen never runs it afterwards).
+2. **Install XkScreen**: double-click `XkScreen-Setup-*.exe` (one UAC prompt). It copies the components it needs into `C:\XkScreen`, registers boot autostart and lights the screen right away.
+3. **Open the console**: the desktop shortcut “XkScreen 控制台”, or any browser at `http://127.0.0.1:8899/` (identical features; nothing extra to launch).
+4. **Rings**: each of the CPU/GPU rings has a top and a bottom 2-digit slot. Pick any of 19 live sources (CPU/GPU load, temperature, clock, power, voltage, RAM, network, fan RPM, disk activity) or a fixed number; “Auto” keeps the vendor behaviour (load/temperature). Changes reach the screen in ~0.4 s.
+5. **Clock area** (6 modes): follow system time · offset (±N minutes) · fixed time (hours 0-99) · **split** (map each 2-digit group to any source/fixed value, e.g. CPU temp : RAM usage → `45:46`) · stopwatch (MM:SS with start/pause/resume/reset) · countdown (stops at 00:00, optional animation on zero).
+6. **Screen power & schedule**: turn the panel off/on manually, or set a daily off-window (23:30–06:00, midnight wrap supported). While off the driver is essentially idle.
+7. **Animations**: pick a persistent effect (pipeline / marquee / digital rain / wave / counter / glitch) with target and speed; one-shots include the **Steins;Gate divergence-meter scramble**, boot scan and glitch burst — plus auto-triggers on screen-on or when a countdown hits 00:00.
+8. **Refresh rate**: 300 ms – 2000 ms; slower is lighter (the whole driver idles at ~0.03 % CPU, so you normally never touch it).
+9. **Tray**: closing the window tucks it into the tray — hover for live CPU/GPU/RAM, right-click for screen on/off, open-in-browser, close-to-tray vs exit. Tray-resident it costs only a few MB.
+10. **Autostart & self-healing**: registered at install time (SYSTEM scheduled task); if the service ever dies, the hourly watchdog brings it back.
+11. **Automation** (optional): the driver exposes a local JSON API — `GET /status`, `POST /config`, `POST /effect`, `GET /perf` (see “Local API” below).
+12. **Troubleshooting**: screen dark/stuck → the driver is not running (run `C:\XkScreen\service_host.cmd` as administrator); console says “sensors inactive” → it was started without administrator rights (restart it the same way); to go back to the original software, uninstall XkScreen — the uninstaller restores the original service to auto-start.
 
 ## 🚀 Quick start (from source)
 

@@ -140,6 +140,9 @@
     `cpu_load` 改用 `GetSystemTimes` 差分（标准 OS 口径）、`cpu_clock` 用 `CallNtPowerInformation`
     有效频率、GPU 利用率/频率/温度直读 NVML（与 nvidia-smi 实测完全一致 39.8==39.8）；
     采样 0.27ms、待机 **0.6% 单核**（TM ≈0.03%）；官方帧（屏幕圆环的 auto 数据）同步用我们的实时值
+  - **品牌与文档**（v0.2.6）：全项目明确目标硬件为**爱国者星璨小岚机箱小屏（Xingcan Xiaolan / XK003）**——
+    README 中英、GitHub 仓库 About、控制台页脚"关于"行、GUI 托盘菜单「关于 XkScreen」（含版本/用途/链接）；
+    README 增补**原版驱动官方下载地址**（https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx）与完整**使用教程**
   - **存储**：GUI 内置副本构建时先清目录（去陈留新 ~800KB）；产品静态资源 ~1.6MB；node_modules 仅构建期
   - **开源**：README 中英双语（徽标/截图/快速开始/数据源与时钟规格表/API）+ MIT + .gitignore 严排除厂商二进制与构建产物
   - **已发布**：<https://github.com/Arimayuki03/xkscreen> （公开）+ `v0.1.0` Release

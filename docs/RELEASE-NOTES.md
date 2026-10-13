@@ -1,5 +1,12 @@
 # Release Notes
 
+## XkScreen v0.2.6 — Branding, About & usage guide
+
+### Added
+
+- The target hardware is now stated explicitly everywhere: **the aigo 星璨小岚 (Xingcan Xiaolan) chassis LCD, model XK003** — README (both languages), the GitHub repository About, the console's about footer, and a new **关于 XkScreen** item in the tray menu (name, version, purpose, original-driver link, project link).
+- README: the **official driver download address** — https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx — in both the requirements table and the install section, plus a complete **usage guide**: install → open the console → ring mapping → six clock modes (incl. split) → screen power & daily schedule → animations → refresh rate → tray → autostart/watchdog → local API → troubleshooting.
+
 ## XkScreen v0.2.5 — Live metrics from native sources
 
 ### Changed

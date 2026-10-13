@@ -114,6 +114,22 @@ namespace XkScreen.Gui
             await EnsureWebAsync();
         }
 
+        private void ShowAbout()
+        {
+            string ver = "";
+            try { ver = " v" + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3); }
+            catch { }
+            WinForms.MessageBox.Show(
+                "XkScreen 星灿屏幕控制台" + ver + "\n\n"
+                + "适用于：爱国者星璨小岚机箱小屏（Xingcan Xiaolan / XK003）\n"
+                + "用途：把小屏的 CPU/GPU 圆环与时钟区变成任意数据的显示面板，\n"
+                + "并提供动画效果、开关屏与定时、网页控制台等能力。\n\n"
+                + "原版驱动下载：https://www.aigodiy.com/HuaqiHOMEAPP/index.aspx\n"
+                + "项目主页：https://github.com/Arimayuki03/xkscreen\n\n"
+                + "开源软件（MIT 许可）。屏幕通信与传感器数据复用原版驱动组件。",
+                "关于 XkScreen", WinForms.MessageBoxButtons.OK, WinForms.MessageBoxIcon.Information);
+        }
+
         // ---- tray ----
 
         private void SetupTray()
@@ -150,6 +166,10 @@ namespace XkScreen.Gui
                 closeToTray = miCloseMode.Checked;
                 SaveGuiSettings();
             };
+            var miAbout = new WinForms.ToolStripMenuItem("关于 XkScreen");
+            miAbout.Click += (s, e) => ShowAbout();
+            menu.Items.Add(miAbout);
+
             var miExit = new WinForms.ToolStripMenuItem("退出程序");
             miExit.Click += (s, e) =>
             {
