@@ -1,5 +1,16 @@
 # Release Notes
 
+## XkScreen v0.2.4 — Data accuracy + console polish
+
+### Fixed
+
+- **Stale CPU load and clock.** After v0.2.2's slim sampling, `cpu_load` and `cpu_clock` could freeze at their last refreshed values (e.g. load nailed at 12 % while the machine was busy, clock stuck at 2.69 GHz). Root cause found by decompiling the vendor path: its `ReadRunData()` override calls `CPUIDSDK.RefreshInformation()` before sampling (that is what re-reads the SDK's frequency/load counters), while temperature and power are read live and kept moving — which is why only those two fields went stale. The driver now calls `RefreshInformation()` in every sampling pass. Verified under load: load 19 → 48 %, clock 26.9 → 52.9 (5.29 GHz boost), then back down after the load ended.
+- Console layout: the split-clock source dropdowns truncated their labels ("CPU 温…"). Dropdown popups are now at least 250 px wide, the two split editors use the full row width, and the animation panel's "开屏时 / 倒计时结束" triggers are two separate aligned rows instead of one wrapping line.
+
+### Data audit (2026-10-13)
+
+Cross-checked every displayed value against independent sources (nvidia-smi, Windows performance counters, the OS memory counters): GPU temperature/load/fan, RAM %/used GB, CPU fan RPM, disk activity and the self-sampled network rates all agreed within their sampling windows. `cpu_load` / `cpu_clock` were the only stale fields — fixed above.
+
 ## XkScreen v0.2.3 — Tray memory stays trimmed
 
 ### Fixed

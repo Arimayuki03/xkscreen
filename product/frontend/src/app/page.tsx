@@ -496,9 +496,12 @@ function Dropdown({
     const below = window.innerHeight - r.bottom;
     const up = below < 300 && r.top > below;
     const space = (up ? r.top : below) - 12;
+    // The popup may be wider than its trigger so long source labels
+    // ("CPU 功耗 ÷10（15 = 150W）") are readable even in a narrow cell.
+    const w = Math.min(Math.max(r.width, 250), window.innerWidth - 16);
     setPos({
-      left: Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8)),
-      width: r.width,
+      left: Math.max(8, Math.min(r.left, window.innerWidth - w - 8)),
+      width: w,
       top: r.bottom + 4,
       bottom: window.innerHeight - r.top + 4,
       up,
@@ -1059,9 +1062,9 @@ export default function Home() {
 
               {mode === "split" && (
                 <div className="flex flex-col gap-2">
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-14 text-xs text-slate-500">{t("splitLeft")}</span>
+                      <span className="w-14 shrink-0 text-xs text-slate-500">{t("splitLeft")}</span>
                       <div className="min-w-0 flex-1">
                         <SlotEditor
                           value={config.splitL}
@@ -1074,7 +1077,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="w-14 text-xs text-slate-500">{t("splitRight")}</span>
+                      <span className="w-14 shrink-0 text-xs text-slate-500">{t("splitRight")}</span>
                       <div className="min-w-0 flex-1">
                         <SlotEditor
                           value={config.splitR}
@@ -1256,7 +1259,7 @@ export default function Home() {
           >
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="w-14 text-sm text-slate-300">{t("fxMode")}</span>
+                <span className="w-20 text-sm text-slate-300">{t("fxMode")}</span>
                 <Segmented<string>
                   value={config.effect}
                   options={[
@@ -1273,7 +1276,7 @@ export default function Home() {
               </div>
               {config.effect !== "off" && (
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="w-14 text-sm text-slate-300">{t("fxTarget")}</span>
+                  <span className="w-20 text-sm text-slate-300">{t("fxTarget")}</span>
                   <Segmented<string>
                     value={config.effTarget}
                     options={[
@@ -1298,7 +1301,7 @@ export default function Home() {
                 </div>
               )}
               <div className="flex flex-wrap items-center gap-3">
-                <span className="w-14 text-sm text-slate-300">{t("fxPlay")}</span>
+                <span className="w-20 text-sm text-slate-300">{t("fxPlay")}</span>
                 {[
                   { n: "steinsgate", label: t("fxSteins"), dur: 3200, spd: 90 },
                   { n: "boot", label: t("fxBoot"), dur: 1800, spd: 80 },
@@ -1315,7 +1318,7 @@ export default function Home() {
                 ))}
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <span className="w-14 text-sm text-slate-300">{t("fxOnScreenOn")}</span>
+                <span className="w-20 text-sm text-slate-300">{t("fxOnScreenOn")}</span>
                 <Segmented<string>
                   value={config.effOnScreenOn}
                   options={[
@@ -1325,7 +1328,9 @@ export default function Home() {
                   ]}
                   onChange={(v) => setConfig((c) => ({ ...c, effOnScreenOn: v }))}
                 />
-                <span className="text-sm text-slate-300">{t("fxOnTimerEnd")}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="w-20 text-sm text-slate-300">{t("fxOnTimerEnd")}</span>
                 <Segmented<string>
                   value={config.effOnTimerEnd}
                   options={[

@@ -23,6 +23,8 @@ namespace XkScreen.Service
         private static MethodInfo readRunDataMethod;
         private static MethodInfo addRunDataMethod;
         private static ConstructorInfo dataItemCtor;
+        private static MethodInfo refreshInfoMethod;
+        private static Type refreshInfoType;
         private static readonly Dictionary<string, MethodInfo> runGetters = new Dictionary<string, MethodInfo>();
         private static PerformanceCounter diskCounter;
         private static bool diskCounterTried;
@@ -136,6 +138,26 @@ namespace XkScreen.Service
                 catch { return false; }
             }
             bool any = false;
+            try
+            {
+                // The vendor's ReadRunData() override calls CPUIDSDK.RefreshInformation()
+                // before sampling: it makes the SDK re-read its frequency/load counters.
+                // Skipping it leaves cpu_load and cpu_clock frozen at their last-refreshed
+                // values (temperature and power are read live and keep moving), so our
+                // slim sampler must do it explicitly.
+                object pSdk = GetPSdk();
+                if (pSdk != null)
+                {
+                    Type t = pSdk.GetType();
+                    if (refreshInfoMethod == null || refreshInfoType != t)
+                    {
+                        refreshInfoType = t;
+                        refreshInfoMethod = t.GetMethod("RefreshInformation");
+                    }
+                    if (refreshInfoMethod != null) refreshInfoMethod.Invoke(pSdk, null);
+                }
+            }
+            catch { }
             for (int i = 0; i < SampledTypes.GetLength(0); i++)
             {
                 string getter = SampledTypes[i, 0];

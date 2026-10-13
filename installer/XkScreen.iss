@@ -12,7 +12,7 @@
 ;  配置保留: C:\ProgramData\XkScreen\config.json 不随卸载删除
 ; ============================================================================
 
-#define Version "0.2.3"
+#define Version "0.2.4"
 
 #ifdef EmbedVendor
   #define OutSuffix "-with-vendor"

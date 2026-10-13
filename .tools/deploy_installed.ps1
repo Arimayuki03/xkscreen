@@ -17,6 +17,7 @@ foreach ($f in 'XkScreen.Gui.exe', 'XkScreen.Gui.dll', 'XkScreen.Gui.deps.json',
 }
 Copy-Item -Force "$root\product\XkScreen.Service\bin\Release\net48\XkScreen.Service.exe" "$app\XkScreen.Service.exe"
 robocopy "$root\product\frontend\out" "$app\gui\web" /MIR /NFL /NDL /NJH /NJS | Out-Null
+robocopy "$root\product\frontend\out" "$app\web" /MIR /NFL /NDL /NJH /NJS | Out-Null
 "files copied" | Out-File -Append -Encoding utf8 $out
 & $st /Run /TN XKScreenDriver 2>&1 | Out-Null
 Start-Sleep -Seconds 12
