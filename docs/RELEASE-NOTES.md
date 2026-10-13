@@ -1,5 +1,13 @@
 # Release Notes
 
+## XkScreen v0.3.0 — Console layout redesign
+
+### Changed
+
+- **Console layout reordered around what you touch most.** The CPU and GPU ring cards now sit side by side at the top (they were buried at the bottom of the right column), followed by the clock, the screen-power card and the animations; the refresh-rate card — a set-once setting — moved to the very bottom. The controls area is now a **single scroll area** instead of two independently scrolling columns, so the whole page reads top to bottom.
+- **The console opens at a size that fits.** It used to open at 1100×750 and needed scrolling for most of the page. It now opens at 1520×1360 DIPs when the screen allows (the whole page fits without scrolling), clamps to the working area otherwise, and centres itself there — computed from the monitor's own scale factor, so 125 %/150 %/200 % displays land in the right place instead of hanging off the screen (WPF's `CenterScreen` mis-centres at non-100 % scales).
+- Screenshots and the usage guide were refreshed for the new order.
+
 ## XkScreen v0.2.9 — Console state restore & fresh screenshots
 
 ### Fixed

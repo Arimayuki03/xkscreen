@@ -5,7 +5,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="XkScreen 屏幕控制台" Width="1100" Height="750"
         MinWidth="920" MinHeight="620"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="Manual"
         Icon="/appicon.png"
         WindowStyle="None" Background="#0a0d12">
     <shell:WindowChrome.WindowChrome>

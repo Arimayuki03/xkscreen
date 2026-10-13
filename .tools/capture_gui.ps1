@@ -3,7 +3,10 @@ param(
     [int]$Width = 1520,
     [int]$Height = 1120,
     [int]$X = 60,
-    [int]$Y = 40
+    [int]$Y = 40,
+    # Width/Height are CSS pixels (what the page's media queries see); the WPF
+    # window is measured in DIPs and rendered at this scale factor.
+    [double]$Scale = 1.5
 )
 Add-Type -AssemblyName System.Drawing
 Add-Type @"
@@ -27,7 +30,9 @@ if ($h -eq [IntPtr]::Zero) { throw "XkScreen.Gui has no main window handle" }
 $t = New-Object System.Text.StringBuilder 256
 [void][XkWin32]::GetWindowText($h, $t, 256)
 [void][XkWin32]::ShowWindow($h, 9)              # SW_RESTORE
-[void][XkWin32]::MoveWindow($h, $X, $Y, $Width, $Height, $true)
+$pw = [int][math]::Round($Width * $Scale)
+$ph = [int][math]::Round($Height * $Scale)
+[void][XkWin32]::MoveWindow($h, $X, $Y, $pw, $ph, $true)
 Start-Sleep -Milliseconds 1800
 $r = New-Object XkWin32+RECT
 [void][XkWin32]::GetWindowRect($h, [ref]$r)
@@ -54,4 +59,4 @@ if (-not $ok -or $distinct -le 1) {
 }
 $bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
 $bmp.Dispose()
-Write-Output ("captured " + $w + "x" + $hh + " title='" + $t.ToString() + "' distinct=" + $distinct + " -> " + $Out)
+Write-Output ("captured " + $w + "x" + $hh + " px (" + $Width + "x" + $Height + " css) title='" + $t.ToString() + "' distinct=" + $distinct + " -> " + $Out)

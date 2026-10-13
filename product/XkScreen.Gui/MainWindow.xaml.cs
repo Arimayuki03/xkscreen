@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Drawing = System.Drawing;
@@ -29,6 +30,9 @@ namespace XkScreen.Gui
 
         [DllImport("kernel32.dll")]
         private static extern IntPtr GetCurrentProcess();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetDpiForWindow(IntPtr hwnd);
 
         /// <summary>WebView2 is created on demand and disposed while the window is
         /// hidden to the tray, so the msedgewebview2 process tree does not keep
@@ -61,6 +65,35 @@ namespace XkScreen.Gui
             InitializeComponent();
             Loaded += OnLoaded;
             Closing += OnClosing;
+        }
+
+        /// <summary>
+        /// The console is a wide dashboard: the rings sit side by side, everything
+        /// else is a full-width card, and the whole page fits in ~1520x1360 DIPs.
+        /// Open at that size when the screen allows it, otherwise fill the working
+        /// area, and centre it there. Runs before the window is shown, so the size
+        /// and position never visibly jump (WPF's CenterScreen mis-centres when the
+        /// monitor scale is not 100%).
+        /// </summary>
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            try
+            {
+                // SystemParameters.WorkArea is reported at the system DPI, so convert
+                // it to DIPs with the window's own monitor scale (e.g. 150%).
+                double scale = GetDpiForWindow(new WindowInteropHelper(this).Handle) / 96.0;
+                if (scale <= 0) scale = 1.0;
+                double areaLeft = SystemParameters.WorkArea.Left / scale;
+                double areaTop = SystemParameters.WorkArea.Top / scale;
+                double areaW = SystemParameters.WorkArea.Width / scale;
+                double areaH = SystemParameters.WorkArea.Height / scale;
+                Width = Math.Min(1520, Math.Max(1100, areaW - 40));
+                Height = Math.Min(1360, Math.Max(720, areaH - 30));
+                Left = areaLeft + Math.Max(0, (areaW - Width) / 2);
+                Top = areaTop + Math.Max(0, (areaH - Height) / 2);
+            }
+            catch { }
         }
 
         // ---- window chrome ----

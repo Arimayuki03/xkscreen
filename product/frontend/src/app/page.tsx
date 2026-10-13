@@ -994,21 +994,64 @@ export default function Home() {
         <Gauge label="GPU" a={gpuA} b={gpuB} ring="gpu" />
       </div>
 
-      {/* controls */}
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
-          <Panel title={t("refreshRate")}>
-            <div className="flex flex-wrap items-center gap-3">
-              <Segmented
-                value={String(config.interval_ms)}
-                options={INTERVALS.map((iv) => ({ v: String(iv), label: iv + "ms" }))}
-                onChange={(v) => setConfig((c) => ({ ...c, interval_ms: parseInt(v, 10) }))}
-              />
-              <span className="text-xs text-slate-500">
-                {(Math.round((1000 / config.interval_ms) * 10) / 10).toFixed(1)} {t("timesPerSec")}
-              </span>
+      {/* controls: rings first (side by side), then clock / screen / effects,
+          refresh rate last — one scroll area instead of two independent columns */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Panel title={t("cpuRing")} right={<span className="text-xs text-slate-500">{t("topBottom")}</span>}>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 text-xs text-slate-500">{t("top")}</span>
+                <div className="flex-1">
+                  <SlotEditor
+                    value={config.cpu[0]}
+                    live={cpuA}
+                    lang={lang}
+                    onChange={(v) => setSlot("cpu", 0, v)}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-8 text-xs text-slate-500">{t("bottom")}</span>
+                <div className="flex-1">
+                  <SlotEditor
+                    value={config.cpu[1]}
+                    live={cpuB}
+                    lang={lang}
+                    onChange={(v) => setSlot("cpu", 1, v)}
+                  />
+                </div>
+              </div>
             </div>
           </Panel>
+
+          <Panel title={t("gpuRing")} right={<span className="text-xs text-slate-500">{t("topBottom")}</span>}>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 text-xs text-slate-500">{t("top")}</span>
+                <div className="flex-1">
+                  <SlotEditor
+                    value={config.gpu[0]}
+                    live={gpuA}
+                    lang={lang}
+                    onChange={(v) => setSlot("gpu", 0, v)}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-8 text-xs text-slate-500">{t("bottom")}</span>
+                <div className="flex-1">
+                  <SlotEditor
+                    value={config.gpu[1]}
+                    live={gpuB}
+                    lang={lang}
+                    onChange={(v) => setSlot("gpu", 1, v)}
+                  />
+                </div>
+              </div>
+            </div>
+          </Panel>
+        </div>
 
           <Panel title={t("clock")}>
             <div className="flex flex-col gap-3">
@@ -1195,9 +1238,7 @@ export default function Home() {
               )}
             </div>
           </Panel>
-        </div>
 
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
           <Panel
             title={t("screenPanel")}
             right={
@@ -1361,60 +1402,18 @@ export default function Home() {
             </div>
           </Panel>
 
-          <Panel title={t("cpuRing")} right={<span className="text-xs text-slate-500">{t("topBottom")}</span>}>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <span className="w-8 text-xs text-slate-500">{t("top")}</span>
-                <div className="flex-1">
-                  <SlotEditor
-                    value={config.cpu[0]}
-                    live={cpuA}
-                    lang={lang}
-                    onChange={(v) => setSlot("cpu", 0, v)}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-8 text-xs text-slate-500">{t("bottom")}</span>
-                <div className="flex-1">
-                  <SlotEditor
-                    value={config.cpu[1]}
-                    live={cpuB}
-                    lang={lang}
-                    onChange={(v) => setSlot("cpu", 1, v)}
-                  />
-                </div>
-              </div>
+          <Panel title={t("refreshRate")}>
+            <div className="flex flex-wrap items-center gap-3">
+              <Segmented
+                value={String(config.interval_ms)}
+                options={INTERVALS.map((iv) => ({ v: String(iv), label: iv + "ms" }))}
+                onChange={(v) => setConfig((c) => ({ ...c, interval_ms: parseInt(v, 10) }))}
+              />
+              <span className="text-xs text-slate-500">
+                {(Math.round((1000 / config.interval_ms) * 10) / 10).toFixed(1)} {t("timesPerSec")}
+              </span>
             </div>
           </Panel>
-
-          <Panel title={t("gpuRing")} right={<span className="text-xs text-slate-500">{t("topBottom")}</span>}>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <span className="w-8 text-xs text-slate-500">{t("top")}</span>
-                <div className="flex-1">
-                  <SlotEditor
-                    value={config.gpu[0]}
-                    live={gpuA}
-                    lang={lang}
-                    onChange={(v) => setSlot("gpu", 0, v)}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-8 text-xs text-slate-500">{t("bottom")}</span>
-                <div className="flex-1">
-                  <SlotEditor
-                    value={config.gpu[1]}
-                    live={gpuB}
-                    lang={lang}
-                    onChange={(v) => setSlot("gpu", 1, v)}
-                  />
-                </div>
-              </div>
-            </div>
-          </Panel>
-        </div>
       </div>
 
       {/* about footer */}
