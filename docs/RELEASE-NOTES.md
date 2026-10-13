@@ -1,5 +1,15 @@
 # Release Notes
 
+## XkScreen v0.2.1 — Tray memory fix
+
+### Fixed
+
+- **Closing the console to the tray now frees its memory.** Previously the window was only hidden, so the WebView2 browser/renderer process tree kept idling in the background (~450 MB). The console now disposes the WebView2 and trims its working set when hidden to the tray, and rebuilds the UI when you reopen it: **≈ 35 MB while in the tray** (versus ≈ 490 MB with the window open), and nothing at all after exiting. Measured: open 488 MB → tray 35 MB → reopened 406 MB.
+
+### Added
+
+- The console is single-instance: launching it again (e.g. from the desktop icon while it sits in the tray) brings the existing window back instead of starting a second copy.
+
 ## XkScreen v0.2.0 — One-click installer
 
 ### Added

@@ -5,6 +5,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -23,6 +24,19 @@ namespace XkScreen.Gui
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
         private static extern IntPtr ShellExecute(IntPtr hwnd, string lpOperation, string lpFile, string lpParameters, string lpDirectory, int nShowCmd);
 
+        [DllImport("psapi.dll")]
+        private static extern bool EmptyWorkingSet(IntPtr hProcess);
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr GetCurrentProcess();
+
+        /// <summary>WebView2 is created on demand and disposed while the window is
+        /// hidden to the tray, so the msedgewebview2 process tree does not keep
+        /// idling in the background.</summary>
+        private Microsoft.Web.WebView2.Wpf.WebView2 Web;
+        private static Mutex singleInstance;
+        private static EventWaitHandle showRequest;
+
         private WinForms.NotifyIcon tray;
         private WinForms.ToolStripMenuItem miStatus;
         private DispatcherTimer tipTimer;
@@ -32,6 +46,18 @@ namespace XkScreen.Gui
 
         public MainWindow()
         {
+            // Single instance: a second launch (e.g. double-clicking the desktop
+            // icon while the window sits in the tray) just asks the running
+            // instance to show its window, instead of starting a duplicate.
+            showRequest = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\XkScreenGuiShowRequest");
+            bool createdNew;
+            singleInstance = new Mutex(true, @"Local\XkScreenGuiSingleInstance", out createdNew);
+            if (!createdNew)
+            {
+                try { showRequest.Set(); } catch { }
+                Environment.Exit(0);
+                return;
+            }
             InitializeComponent();
             Loaded += OnLoaded;
             Closing += OnClosing;
@@ -76,14 +102,16 @@ namespace XkScreen.Gui
             {
                 e.Cancel = true;
                 Hide();
+                ReleaseWeb();
             }
         }
 
-        private void RestoreWindow()
+        private async void RestoreWindow()
         {
             Show();
             if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
             Activate();
+            await EnsureWebAsync();
         }
 
         // ---- tray ----
@@ -262,8 +290,37 @@ namespace XkScreen.Gui
             tipTimer.Start();
             await UpdateStatusAsync();
 
+            // A second launch (desktop icon while running in the tray) asks this
+            // instance to show its window; there is only ever one console process.
+            Thread listener = new Thread(delegate ()
+            {
+                try
+                {
+                    while (true)
+                    {
+                        if (!showRequest.WaitOne()) break;
+                        Dispatcher.BeginInvoke(new Action(delegate () { RestoreWindow(); }));
+                    }
+                }
+                catch { }
+            });
+            listener.IsBackground = true;
+            listener.Start();
+
+            await EnsureWebAsync();
+        }
+
+        /// <summary>Create the WebView2 and navigate to the console. Called on
+        /// startup and again whenever the window is shown after a tray hide.</summary>
+        private async Task EnsureWebAsync()
+        {
+            if (Web != null && Web.CoreWebView2 != null) return;
             try
             {
+                Web = new Microsoft.Web.WebView2.Wpf.WebView2();
+                try { Web.DefaultBackgroundColor = Drawing.Color.FromArgb(13, 18, 25); } catch { }
+                WebHost.Children.Add(Web);
+
                 // Keep the page's polling running even when the window is unfocused or
                 // occluded, and render with the software rasteriser: the UI is light
                 // static content, so dropping the GPU process saves memory.
@@ -317,6 +374,24 @@ namespace XkScreen.Gui
             {
                 MessageBox.Show("界面初始化失败: " + ex.Message);
             }
+        }
+
+        /// <summary>Dispose the WebView2 - which frees the whole msedgewebview2
+        /// process tree (100+ MB) - and trim our working set, for the tray state.</summary>
+        private void ReleaseWeb()
+        {
+            try
+            {
+                if (Web != null)
+                {
+                    try { if (Web.CoreWebView2 != null) Web.CoreWebView2.Stop(); } catch { }
+                    WebHost.Children.Remove(Web);
+                    Web.Dispose();
+                }
+            }
+            catch { }
+            Web = null;
+            try { EmptyWorkingSet(GetCurrentProcess()); } catch { }
         }
     }
 }

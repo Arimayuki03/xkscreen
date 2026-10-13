@@ -78,6 +78,6 @@
             </Grid>
         </Border>
 
-        <wv2:WebView2 Grid.Row="1" x:Name="Web" />
+        <Grid Grid.Row="1" x:Name="WebHost" />
     </Grid>
 </Window>
