@@ -1,5 +1,12 @@
 # Release Notes
 
+## XkScreen v0.4.1 — Antivirus false positive mitigation
+
+### Changed
+
+- **Both binaries now carry real version metadata** — company, product, title, description, copyright and an informational version — instead of the SDK's placeholder text (`XkScreen.Gui`, `XkScreen.Service`) and a default `1.0.0.0`. A freshly built, unsigned assembly with placeholder metadata is exactly what heuristic engines score as suspicious, and 360's QVM flagged `XkScreen.Gui.dll` as `HEUR/QVM03.0.B3E0.Malware.Gen` (a static heuristic verdict — the file's SHA-256 matched our own build output byte for byte, so it was a false positive, not an infection).
+- **README troubleshooting now covers AV false positives**, with the trust/exclusion steps for 360 and Windows Defender — for an unsigned app that writes an autostart entry, talks to `127.0.0.1` and lives in the tray, exclusion is the reliable fix until the binaries can be code-signed.
+
 ## XkScreen v0.4.0 — Console autostart switch & installer page fix
 
 ### Added

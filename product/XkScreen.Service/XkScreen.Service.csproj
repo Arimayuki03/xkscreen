@@ -8,6 +8,15 @@
     <AssemblyName>XkScreen.Service</AssemblyName>
     <RootNamespace>XkScreen.Service</RootNamespace>
     <ApplicationIcon>appicon.ico</ApplicationIcon>
+    <!-- Same reason as the console: give the binary real, human-readable version
+         metadata instead of the SDK's placeholder text and a default 1.0.0.0. -->
+    <Version>0.4.1</Version>
+    <Company>Arimayuki03</Company>
+    <Product>XkScreen</Product>
+    <AssemblyTitle>XkScreen 屏幕驱动服务</AssemblyTitle>
+    <Description>XkScreen 小屏驱动服务 (XK003)</Description>
+    <Copyright>Copyright (c) 2026 Arimayuki03. MIT License.</Copyright>
+    <InformationalVersion>0.4.1 (https://github.com/Arimayuki03/xkscreen)</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
