@@ -1,5 +1,11 @@
 # Release Notes
 
+## XkScreen v0.3.1 — Driver icon
+
+### Changed
+
+- The driver (`XkScreen.Service.exe`) now carries the XkScreen icon instead of the generic Windows application icon, so Task Manager, Explorer and the file-properties dialog identify it as part of the suite (same icon as the console).
+
 ## XkScreen v0.3.0 — Console layout redesign
 
 ### Changed

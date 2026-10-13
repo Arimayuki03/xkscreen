@@ -7,6 +7,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>XkScreen.Service</AssemblyName>
     <RootNamespace>XkScreen.Service</RootNamespace>
+    <ApplicationIcon>appicon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
